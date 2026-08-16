@@ -1,0 +1,7 @@
+# dsh-tidychat bundle patch: 把双面插件行插入 web profile 的 roster。
+# 作为 profile bundle 层（package.json 的 dsh.bundle.patch 字段）应用。
+# node 半（exports "."）在 host 进程运行（注册 settings 命名空间）；
+# dsh.client 声明让浏览器半（exports "./client"，served at /plugins/<id>/client.js）在 Web GUI 加载。
+- insert:
+    - id: tidychat
+      name: '@bananasoldier01/dsh-tidychat'
