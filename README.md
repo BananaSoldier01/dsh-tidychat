@@ -17,9 +17,26 @@
 
 四个功能各自独立，可在「设置 → 插件配置」里可视化开关，改动即时生效。
 
-<!-- 截图占位：折叠前后对比 -->
-<!-- 截图占位：左缘定位条 -->
-<!-- 截图占位：设置面板 -->
+## 📸 效果
+
+**自动折叠**：已完成轮次收成一条控制条，只留最终结论（上）；点击「展开」恢复思考、工具调用与中间文字（下）。
+
+<p align="center">
+  <img src="./assets/fold-collapsed.png" width="92%" alt="折叠：只留最终结论">
+  <img src="./assets/fold-expanded.png" width="92%" alt="展开：恢复完整过程">
+</p>
+
+**左缘定位条**：细窄条状导航，悬停弹出摘要卡（含日期时间），点击跳转。
+
+<p align="center">
+  <img src="./assets/navigator.png" width="92%" alt="左缘定位条与悬停摘要">
+</p>
+
+**设置面板**：四个功能独立开关，改动即时生效。
+
+<p align="center">
+  <img src="./assets/settings.png" width="92%" alt="设置面板四开关">
+</p>
 
 ## 🚀 安装
 
