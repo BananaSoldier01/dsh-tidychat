@@ -1,5 +1,5 @@
 /**
- * @bananasoldier01/dsh-tidychat browser half: conversation timeline enhancement.
+ * dsh-tidychat browser half: conversation timeline enhancement.
  *
  * - 已完成轮次自动折叠：隐藏思考 / 工具调用 / 中间文字，只保留最终总结，控制条常驻轮次顶部（含处理时长）。
  * - 分隔线：思考行与文字之间的实线 + 控制条自身的分隔线。
@@ -230,7 +230,7 @@ const CSS = `
 
 function injectStyle(css: string): () => void {
   const tag = document.createElement('style')
-  tag.setAttribute('data-plugin-css', '@bananasoldier01/dsh-tidychat')
+  tag.setAttribute('data-plugin-css', 'dsh-tidychat')
   tag.textContent = css
   document.head.appendChild(tag)
   return () => { tag.remove() }
@@ -444,7 +444,7 @@ export function apply(ctx: any): void {
       autoLoadOlder()
       notify()
     } catch (err) {
-      console.error('[@bananasoldier01/dsh-tidychat] 扫描出错', err)
+      console.error('[dsh-tidychat] 扫描出错', err)
     }
   }
 
@@ -644,8 +644,8 @@ export function apply(ctx: any): void {
         onClick: () => setOpen(!open),
       },
         React.createElement('span', { className: 'tidychat-card-headtext' },
-          React.createElement('span', { className: 'tidychat-card-name' }, '@bananasoldier01/dsh-tidychat'),
-          React.createElement('span', { className: 'tidychat-card-desc' }, '会话时间线增强：折叠、分隔线、定位条'),
+          React.createElement('span', { className: 'tidychat-card-name' }, '会话整理'),
+          React.createElement('span', { className: 'tidychat-card-desc' }, '折叠、分隔线、定位条 —— 把长会话整理成可扫读的结论流'),
         ),
         React.createElement('svg', {
           className: 'tidychat-card-chevron' + (open ? ' tidychat-card-chevron-open' : ''),
