@@ -263,25 +263,11 @@ export function apply(ctx: any): void {
     generation: number
     status: 'idle' | 'loading' | 'paused' | 'done'
     consecutiveSlow: number
-    longTaskSeqBase: number
     nullStreak: number
   }
   const governor = new Map<string, AutoLoadState>()
   let activeSessionId: string | null = null
-  let longTaskSeq = 0
   let governorBusy = false
-
-  // Long Task 计数（Chromium/Firefox；Safari 无此 API）。用事件序号而非最大时长：
-  // 只有「本批加载期间新增了 Long Task」才触发暂停；历史最大时长会掩盖新事件。
-  ctx.effect(() => {
-    try {
-      const po = new PerformanceObserver((list) => { longTaskSeq += list.getEntries().length })
-      po.observe({ type: 'longtask', buffered: true })
-      return () => { po.disconnect() }
-    } catch {
-      return () => {}
-    }
-  })
 
   // 设置：tidychat 命名空间，四个开关；读不到 settings 服务时全开。
   const config = { fold: true, divider: true, navigator: true, autoLoad: true }
@@ -484,8 +470,14 @@ export function apply(ctx: any): void {
   }
 
   const countAnchors = (): number => {
-    const scope: ParentNode = findScrollContainer() ?? document
-    return scope.querySelectorAll('[data-chat-anchor-key]').length
+    const container = findScrollContainer()
+    const scopes: ParentNode[] = container !== null ? [container, document] : [document]
+    // 去重计数：容器内外若重叠，只算一次
+    const seen = new Set<Element>()
+    for (const scope of scopes) {
+      for (const el of Array.from(scope.querySelectorAll<Element>('[data-chat-anchor-key]'))) seen.add(el)
+    }
+    return seen.size
   }
 
   // 单次「加载一页后」的受控测量：只测 applySurgery 的耗时（DOM 越大越贵），随后通知导航条刷新。
@@ -557,7 +549,6 @@ export function apply(ctx: any): void {
       return
     }
     st.status = 'loading'
-    st.longTaskSeqBase = longTaskSeq
     governorBusy = true
     const before = countAnchors()
     // 先挂 settle observer + 超时，再点击，避免点击同步触发 DOM 变化时漏观察
@@ -588,8 +579,6 @@ export function apply(ctx: any): void {
       governorBusy = false
       // 超时 / 静默后无增长且按钮仍在 = 失败或空转，避免自动重试循环
       if (isTimeout || (!grew && stillHasButton)) { pauseGovernor(st); return }
-      // Long Task（Chromium/Firefox）：本批期间新增 long task = 宿主渲染明显阻塞
-      if (longTaskSeq > st.longTaskSeqBase) { pauseGovernor(st); return }
       if (scanMs >= HARD_BUDGET_MS) { pauseGovernor(st); return }
       if (scanMs >= SOFT_BUDGET_MS) {
         st.consecutiveSlow += 1
@@ -713,7 +702,7 @@ export function apply(ctx: any): void {
         if (typeof sid === 'string' && sid !== '') {
           activeSessionId = sid
           if (!governor.has(sid)) {
-            governor.set(sid, { generation: 0, status: 'idle', consecutiveSlow: 0, longTaskSeqBase: 0, nullStreak: 0 })
+            governor.set(sid, { generation: 0, status: 'idle', consecutiveSlow: 0, nullStreak: 0 })
           }
           rebindMainObserver()
           scheduleNext(sid)
