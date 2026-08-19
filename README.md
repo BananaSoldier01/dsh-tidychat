@@ -49,13 +49,15 @@ dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat
 
 安装后重启 dsh web + 硬刷新（Cmd+Shift+R）。
 
-> ⚠️ **让设置开关可写（可选）**：DSH 的「设置 > 插件配置」白名单硬编码在宿主编译产物里，默认不含第三方插件的命名空间，导致开关变灰不可点。运行下面命令把 `tidychat` 加进白名单（幂等；DSH 升级后重跑即可）：
+> ⚠️ **让设置开关可写（仅 DSH ≤ 0.1.0-rc.6 需要）**：rc.6 及更早版本的「设置 > 插件配置」白名单硬编码在宿主编译产物里，默认不含第三方插件的命名空间，导致开关变灰不可点。运行下面命令把 `tidychat` 加进白名单（幂等；DSH 升级后重跑即可）：
 >
 > ```sh
 > curl -sL https://raw.githubusercontent.com/BananaSoldier01/dsh-tidychat/main/scripts/whitelist-patch.sh | bash
 > ```
 >
-> 不跑这条也不影响核心功能——四个开关会以默认值（全开）正常工作，只是设置面板里的开关不可点。若你是让 AI agent 安装的，把这段说明交给它即可。
+> **DSH ≥ 0.1.0-rc.7 不需要这条**：rc.7 起白名单机制移除，命名空间由插件动态注册，开关自动可点。
+
+> 💡 **版本兼容性**：`0.1.1` 适配 **DSH ≥ 0.1.0-rc.7**（rc.7 把 `settings.plugin.item` 槽从 list 改为 keyed，注册字段由 `id` 改为 `key`，旧版写法会报 "Failed to load plugins"）；**DSH ≤ 0.1.0-rc.6 请使用 `0.1.0`**。
 
 ### 本地开发（link 模式）
 
