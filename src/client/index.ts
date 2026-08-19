@@ -96,7 +96,7 @@ const CSS = `
   z-index: 41;
   pointer-events: none;
   max-width: 300px;
-  background: var(--dsw-alias-tooltip-bg, #fff);
+  background: var(--dsw-alias-bg-overlay, #fff);
   border: 1px solid var(--dsw-alias-border-l2, rgba(128,128,128,0.3));
   border-radius: 8px;
   box-shadow: 0 6px 18px rgba(0,0,0,0.16);
