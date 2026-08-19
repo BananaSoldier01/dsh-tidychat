@@ -256,12 +256,15 @@ export function apply(ctx: any): void {
   const SETTLE_QUIET_MS = 300
   const SETTLE_TIMEOUT_MS = 8000
   const IDLE_FALLBACK_MS = 50
+  const NULL_RETRY_LIMIT = 15
+  const NULL_RETRY_DELAY_MS = 2000
 
   interface AutoLoadState {
     generation: number
     status: 'idle' | 'loading' | 'paused' | 'done'
     consecutiveSlow: number
     longTaskSeqBase: number
+    nullStreak: number
   }
   const governor = new Map<string, AutoLoadState>()
   let activeSessionId: string | null = null
@@ -462,13 +465,19 @@ export function apply(ctx: any): void {
 
   const findScrollContainer = (): Element | null => document.querySelector('[data-conversation-scroll]')
 
+  const isLoadOlderButton = (b: Element): boolean => {
+    const t = (b.textContent || '').trim()
+    return t === '加载更早' || t === '加载更多' || t === 'Load earlier' || t === 'Load older' || t === 'Load more'
+  }
+
   const findLoadOlderButton = (): HTMLButtonElement | null => {
-    const scope: ParentNode = findScrollContainer() ?? document
-    const buttons = Array.from(scope.querySelectorAll('button'))
-    for (const b of buttons) {
-      const t = (b.textContent || '').trim()
-      if (t === '加载更早' || t === '加载更多' || t.indexOf('Load older') === 0 || t.indexOf('Load more') === 0) {
-        return b as HTMLButtonElement
+    // 优先在会话滚动容器内找，找不到再回退全文档（防按钮不在容器内的布局差异）
+    const container = findScrollContainer()
+    const scopes: ParentNode[] = container !== null ? [container, document] : [document]
+    for (const scope of scopes) {
+      const buttons = Array.from(scope.querySelectorAll('button'))
+      for (const b of buttons) {
+        if (isLoadOlderButton(b)) return b as HTMLButtonElement
       }
     }
     return null
@@ -531,11 +540,20 @@ export function apply(ctx: any): void {
     const st = governor.get(sessionId)
     if (st === undefined || st.generation !== gen || st.status !== 'idle') return
     const btn = findLoadOlderButton()
-    if (btn === null) { st.status = 'done'; return }
+    if (btn === null) {
+      // 按钮尚未出现（会话仍在加载、hasMore 尚未确定）或确实无更早历史。
+      // 有限重试后放弃，避免首次就误判 done 导致永不自动加载。
+      if (st.nullStreak >= NULL_RETRY_LIMIT) { st.status = 'done'; return }
+      st.nullStreak += 1
+      st.status = 'idle'
+      setTimeout(() => { scheduleNext(sessionId) }, NULL_RETRY_DELAY_MS)
+      return
+    }
+    st.nullStreak = 0
     if (btn.disabled) {
       // 可能是暂时 loading/不可用，保持 idle 稍后重试，而非永久 done
       st.status = 'idle'
-      setTimeout(() => { scheduleNext(sessionId) }, 2000)
+      setTimeout(() => { scheduleNext(sessionId) }, NULL_RETRY_DELAY_MS)
       return
     }
     st.status = 'loading'
@@ -579,6 +597,8 @@ export function apply(ctx: any): void {
       } else {
         st.consecutiveSlow = 0
       }
+      // 本批确实加载了新内容且「加载更早」按钮已消失 = 已到历史最前端，干净收尾
+      if (grew && !stillHasButton) { st.status = 'done'; return }
       st.status = 'idle'
       scheduleNext(sessionId)
     }
@@ -693,7 +713,7 @@ export function apply(ctx: any): void {
         if (typeof sid === 'string' && sid !== '') {
           activeSessionId = sid
           if (!governor.has(sid)) {
-            governor.set(sid, { generation: 0, status: 'idle', consecutiveSlow: 0, longTaskSeqBase: 0 })
+            governor.set(sid, { generation: 0, status: 'idle', consecutiveSlow: 0, longTaskSeqBase: 0, nullStreak: 0 })
           }
           rebindMainObserver()
           scheduleNext(sid)
