@@ -261,19 +261,24 @@ export function apply(ctx: any): void {
     generation: number
     status: 'idle' | 'loading' | 'paused' | 'done'
     consecutiveSlow: number
-    longTaskBaseline: number
+    longTaskSeqBase: number
   }
   const governor = new Map<string, AutoLoadState>()
   let activeSessionId: string | null = null
-  let lastLongTaskMs = 0
-  try {
-    const longTaskObserver = new PerformanceObserver((list) => {
-      for (const entry of list.getEntries()) {
-        lastLongTaskMs = Math.max(lastLongTaskMs, Number((entry as any).duration ?? 0))
-      }
-    })
-    longTaskObserver.observe({ type: 'longtask', buffered: true })
-  } catch { /* Safari 等无 Long Task API */ }
+  let longTaskSeq = 0
+  let governorBusy = false
+
+  // Long Task 计数（Chromium/Firefox；Safari 无此 API）。用事件序号而非最大时长：
+  // 只有「本批加载期间新增了 Long Task」才触发暂停；历史最大时长会掩盖新事件。
+  ctx.effect(() => {
+    try {
+      const po = new PerformanceObserver((list) => { longTaskSeq += list.getEntries().length })
+      po.observe({ type: 'longtask', buffered: true })
+      return () => { po.disconnect() }
+    } catch {
+      return () => {}
+    }
+  })
 
   // 设置：tidychat 命名空间，四个开关；读不到 settings 服务时全开。
   const config = { fold: true, divider: true, navigator: true, autoLoad: true }
@@ -455,8 +460,11 @@ export function apply(ctx: any): void {
     }
   }
 
+  const findScrollContainer = (): Element | null => document.querySelector('[data-conversation-scroll]')
+
   const findLoadOlderButton = (): HTMLButtonElement | null => {
-    const buttons = Array.from(document.querySelectorAll('button'))
+    const scope: ParentNode = findScrollContainer() ?? document
+    const buttons = Array.from(scope.querySelectorAll('button'))
     for (const b of buttons) {
       const t = (b.textContent || '').trim()
       if (t === '加载更早' || t === '加载更多' || t.indexOf('Load older') === 0 || t.indexOf('Load more') === 0) {
@@ -466,9 +474,10 @@ export function apply(ctx: any): void {
     return null
   }
 
-  const findScrollContainer = (): Element | null => document.querySelector('[data-conversation-scroll]')
-
-  const countAnchors = (): number => document.querySelectorAll('[data-chat-anchor-key]').length
+  const countAnchors = (): number => {
+    const scope: ParentNode = findScrollContainer() ?? document
+    return scope.querySelectorAll('[data-chat-anchor-key]').length
+  }
 
   // 单次「加载一页后」的受控测量：只测 applySurgery 的耗时（DOM 越大越贵），随后通知导航条刷新。
   const measuredScan = (): number => {
@@ -522,12 +531,20 @@ export function apply(ctx: any): void {
     const st = governor.get(sessionId)
     if (st === undefined || st.generation !== gen || st.status !== 'idle') return
     const btn = findLoadOlderButton()
-    if (btn === null || btn.disabled) { st.status = 'done'; return }
+    if (btn === null) { st.status = 'done'; return }
+    if (btn.disabled) {
+      // 可能是暂时 loading/不可用，保持 idle 稍后重试，而非永久 done
+      st.status = 'idle'
+      setTimeout(() => { scheduleNext(sessionId) }, 2000)
+      return
+    }
     st.status = 'loading'
-    st.longTaskBaseline = lastLongTaskMs
+    st.longTaskSeqBase = longTaskSeq
+    governorBusy = true
     const before = countAnchors()
-    try { btn.click() } catch { /* ignore */ }
+    // 先挂 settle observer + 超时，再点击，避免点击同步触发 DOM 变化时漏观察
     settleThenMeasure(sessionId, gen, before)
+    try { btn.click() } catch { /* ignore */ }
   }
 
   function settleThenMeasure(sessionId: string, gen: number, before: number): void {
@@ -541,17 +558,20 @@ export function apply(ctx: any): void {
       if (quietTimer !== null) clearTimeout(quietTimer)
       if (settleTimeout !== null) clearTimeout(settleTimeout)
       obs?.disconnect()
-      if (sessionId !== activeSessionId) return
+      if (sessionId !== activeSessionId) { governorBusy = false; return }
       const st = governor.get(sessionId)
-      if (st === undefined || st.generation !== gen || st.status !== 'loading') return
+      if (st === undefined || st.generation !== gen || st.status !== 'loading') { governorBusy = false; return }
       const after = countAnchors()
       const grew = after > before
       const stillHasButton = findLoadOlderButton() !== null
+      // 每批只执行一次 surgery + 测量（普通 scan 在 batch 期间被抑制），
+      // 测的才是这批历史真实带来的首次处理成本。
+      const scanMs = measuredScan()
+      governorBusy = false
       // 超时 / 静默后无增长且按钮仍在 = 失败或空转，避免自动重试循环
       if (isTimeout || (!grew && stillHasButton)) { pauseGovernor(st); return }
-      const scanMs = measuredScan()
-      // Long Task（仅 Chromium/Firefox）：检测 DSH 宿主渲染造成的额外主线程阻塞
-      if (lastLongTaskMs > st.longTaskBaseline) { pauseGovernor(st); return }
+      // Long Task（Chromium/Firefox）：本批期间新增 long task = 宿主渲染明显阻塞
+      if (longTaskSeq > st.longTaskSeqBase) { pauseGovernor(st); return }
       if (scanMs >= HARD_BUDGET_MS) { pauseGovernor(st); return }
       if (scanMs >= SOFT_BUDGET_MS) {
         st.consecutiveSlow += 1
@@ -606,30 +626,31 @@ export function apply(ctx: any): void {
 
   scan()
 
+  // 主观察器（收窄到会话滚动容器）——提升到 apply 作用域，便于会话切换时立即重绑。
+  let mainObserver: MutationObserver | null = null
+  let mainTarget: Node = document.body
+  let mainPending: ReturnType<typeof setTimeout> | null = null
+  const rebindMainObserver = (): void => {
+    const container = findScrollContainer()
+    const next: Node = container ?? document.body
+    if (mainObserver !== null && next === mainTarget) return
+    if (mainObserver !== null) mainObserver.disconnect()
+    mainTarget = next
+    mainObserver = new MutationObserver(() => {
+      if (mainPending !== null) return
+      mainPending = setTimeout(() => { mainPending = null; if (!governorBusy) scan() }, 250)
+    })
+    mainObserver.observe(mainTarget, { childList: true, subtree: true })
+  }
+
   ctx.effect(() => {
-    let pending: ReturnType<typeof setTimeout> | null = null
-    let obs: MutationObserver | null = null
-    let target: Node = document.body
-    // 收窄观察范围：优先 [data-conversation-scroll]（rc.7 会话滚动容器），
-    // 容器懒挂载前先观察 body，出现后切换。
-    const rebind = (): void => {
-      const container = findScrollContainer()
-      const next: Node = container ?? document.body
-      if (obs !== null && next === target) return
-      if (obs !== null) obs.disconnect()
-      target = next
-      obs = new MutationObserver(() => {
-        if (pending !== null) return
-        pending = setTimeout(() => { pending = null; scan() }, 250)
-      })
-      obs.observe(target, { childList: true, subtree: true })
-    }
-    rebind()
-    const intervalId = setInterval(() => { rebind(); scan() }, 5000)
+    rebindMainObserver()
+    const intervalId = setInterval(() => { rebindMainObserver(); if (!governorBusy) scan() }, 5000)
     return () => {
-      if (obs !== null) obs.disconnect()
+      if (mainObserver !== null) mainObserver.disconnect()
+      mainObserver = null
       clearInterval(intervalId)
-      if (pending !== null) clearTimeout(pending)
+      if (mainPending !== null) clearTimeout(mainPending)
     }
   })
 
@@ -672,8 +693,9 @@ export function apply(ctx: any): void {
         if (typeof sid === 'string' && sid !== '') {
           activeSessionId = sid
           if (!governor.has(sid)) {
-            governor.set(sid, { generation: 0, status: 'idle', consecutiveSlow: 0, longTaskBaseline: 0 })
+            governor.set(sid, { generation: 0, status: 'idle', consecutiveSlow: 0, longTaskSeqBase: 0 })
           }
+          rebindMainObserver()
           scheduleNext(sid)
         }
         if (typeof sid === 'undefined' || sid === null) return

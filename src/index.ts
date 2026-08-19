@@ -20,7 +20,7 @@ export interface Config {
   divider?: boolean
   /** 左缘 Codex 式用户消息定位条。 */
   navigator?: boolean
-  /** 自动点击「加载更早」把历史补全。 */
+  /** 页面空闲时逐步加载更早历史；检测到性能压力时自动暂停。 */
   autoLoad?: boolean
 }
 
