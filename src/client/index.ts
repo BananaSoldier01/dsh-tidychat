@@ -55,6 +55,12 @@ const CSS = `
 .tidychat-ctl-btn:hover {
   background: var(--dsw-alias-interactive-bg-hover, rgba(127,127,127,0.1));
 }
+.tidychat-autoload-hint {
+  font-size: 11px;
+  color: var(--dsw-alias-label-tertiary, #999);
+  margin-left: 8px;
+  white-space: nowrap;
+}
 [data-tidychat-folded], [data-tidychat-folded-inline] {
   display: none !important;
 }
@@ -242,8 +248,32 @@ export function apply(ctx: any): void {
   const listeners: Array<() => void> = []
   const notify = () => { for (const fn of listeners) fn() }
   const foldState = new Map<number, boolean>()
-  let autoLoadCount = 0
-  let autoLoadBusy = false
+
+  // ===== Smart AutoLoad Governor（内部性能预算为时间，非行数/次数，跨机器自洽）=====
+  const SOFT_BUDGET_MS = 30
+  const HARD_BUDGET_MS = 50
+  const CONSECUTIVE_SLOW_LIMIT = 3
+  const SETTLE_QUIET_MS = 300
+  const SETTLE_TIMEOUT_MS = 8000
+  const IDLE_FALLBACK_MS = 50
+
+  interface AutoLoadState {
+    generation: number
+    status: 'idle' | 'loading' | 'paused' | 'done'
+    consecutiveSlow: number
+    longTaskBaseline: number
+  }
+  const governor = new Map<string, AutoLoadState>()
+  let activeSessionId: string | null = null
+  let lastLongTaskMs = 0
+  try {
+    const longTaskObserver = new PerformanceObserver((list) => {
+      for (const entry of list.getEntries()) {
+        lastLongTaskMs = Math.max(lastLongTaskMs, Number((entry as any).duration ?? 0))
+      }
+    })
+    longTaskObserver.observe({ type: 'longtask', buffered: true })
+  } catch { /* Safari 等无 Long Task API */ }
 
   // 设置：tidychat 命名空间，四个开关；读不到 settings 服务时全开。
   const config = { fold: true, divider: true, navigator: true, autoLoad: true }
@@ -417,31 +447,134 @@ export function apply(ctx: any): void {
       const totalSteps = thinkCount + turn.toolCalls
       const parts = [folded ? ('过程 ' + totalSteps + ' 步') : ('已展开 ' + totalSteps + ' 步')]
       if (turn.timing !== '') parts.push(turn.timing)
-      if (label !== null) label.textContent = parts.join(' · ')
-      if (btn !== null) btn.textContent = folded ? '展开' : '收起'
+      const labelText = parts.join(' · ')
+      const btnText = folded ? '展开' : '收起'
+      // 只在文案真正变化时才写入，避免相同 textContent 反复触发 DOM mutation
+      if (label !== null && label.textContent !== labelText) label.textContent = labelText
+      if (btn !== null && btn.textContent !== btnText) btn.textContent = btnText
     }
   }
 
-  const autoLoadOlder = (): boolean => {
-    if (!config.autoLoad) return false
-    if (autoLoadBusy || autoLoadCount > 60) return false
+  const findLoadOlderButton = (): HTMLButtonElement | null => {
     const buttons = Array.from(document.querySelectorAll('button'))
-    const btn = buttons.find((b) => {
+    for (const b of buttons) {
       const t = (b.textContent || '').trim()
-      return t === '加载更早' || t === '加载更多' || t.indexOf('Load older') === 0 || t.indexOf('Load more') === 0
-    })
-    if (btn === undefined || btn.disabled) return false
-    autoLoadBusy = true
-    autoLoadCount += 1
+      if (t === '加载更早' || t === '加载更多' || t.indexOf('Load older') === 0 || t.indexOf('Load more') === 0) {
+        return b as HTMLButtonElement
+      }
+    }
+    return null
+  }
+
+  const findScrollContainer = (): Element | null => document.querySelector('[data-conversation-scroll]')
+
+  const countAnchors = (): number => document.querySelectorAll('[data-chat-anchor-key]').length
+
+  // 单次「加载一页后」的受控测量：只测 applySurgery 的耗时（DOM 越大越贵），随后通知导航条刷新。
+  const measuredScan = (): number => {
+    const t0 = performance.now()
+    try { applySurgery() } catch (err) { console.error('[dsh-tidychat] 扫描出错', err) }
+    const ms = performance.now() - t0
+    try { notify() } catch { /* ignore */ }
+    return ms
+  }
+
+  const showPausedHint = (): void => {
+    if (document.querySelector('[data-tidychat-autoload-hint]') !== null) return
+    const btn = findLoadOlderButton()
+    if (btn === null || btn.parentElement === null) return
+    const hint = document.createElement('span')
+    hint.setAttribute('data-tidychat-autoload-hint', '1')
+    hint.className = 'tidychat-autoload-hint'
+    hint.textContent = '为保持流畅，已暂停自动加载更早历史；可手动继续'
+    btn.parentElement.insertBefore(hint, btn.nextSibling)
+  }
+
+  function pauseGovernor(st: AutoLoadState): void {
+    st.status = 'paused'
+    st.generation += 1
+    showPausedHint()
+  }
+
+  function scheduleNext(sessionId: string): void {
+    if (!config.autoLoad) return
+    if (sessionId !== activeSessionId) return
+    const st = governor.get(sessionId)
+    if (st === undefined || st.status !== 'idle') return
+    const gen = ++st.generation
+    const run = (): void => {
+      if (sessionId !== activeSessionId) return
+      const cur = governor.get(sessionId)
+      if (cur === undefined || cur.generation !== gen || cur.status !== 'idle') return
+      loadOnePage(sessionId, gen)
+    }
+    const w = window as any
+    if (typeof w.requestIdleCallback === 'function') {
+      w.requestIdleCallback(run, { timeout: 2000 })
+    } else {
+      setTimeout(run, IDLE_FALLBACK_MS)
+    }
+  }
+
+  function loadOnePage(sessionId: string, gen: number): void {
+    if (!config.autoLoad) return
+    if (sessionId !== activeSessionId) return
+    const st = governor.get(sessionId)
+    if (st === undefined || st.generation !== gen || st.status !== 'idle') return
+    const btn = findLoadOlderButton()
+    if (btn === null || btn.disabled) { st.status = 'done'; return }
+    st.status = 'loading'
+    st.longTaskBaseline = lastLongTaskMs
+    const before = countAnchors()
     try { btn.click() } catch { /* ignore */ }
-    setTimeout(() => { autoLoadBusy = false }, 1200)
-    return true
+    settleThenMeasure(sessionId, gen, before)
+  }
+
+  function settleThenMeasure(sessionId: string, gen: number, before: number): void {
+    let quietTimer: ReturnType<typeof setTimeout> | null = null
+    let settleTimeout: ReturnType<typeof setTimeout> | null = null
+    let obs: MutationObserver | null = null
+    let finished = false
+    const finish = (isTimeout: boolean): void => {
+      if (finished) return
+      finished = true
+      if (quietTimer !== null) clearTimeout(quietTimer)
+      if (settleTimeout !== null) clearTimeout(settleTimeout)
+      obs?.disconnect()
+      if (sessionId !== activeSessionId) return
+      const st = governor.get(sessionId)
+      if (st === undefined || st.generation !== gen || st.status !== 'loading') return
+      const after = countAnchors()
+      const grew = after > before
+      const stillHasButton = findLoadOlderButton() !== null
+      // 超时 / 静默后无增长且按钮仍在 = 失败或空转，避免自动重试循环
+      if (isTimeout || (!grew && stillHasButton)) { pauseGovernor(st); return }
+      const scanMs = measuredScan()
+      // Long Task（仅 Chromium/Firefox）：检测 DSH 宿主渲染造成的额外主线程阻塞
+      if (lastLongTaskMs > st.longTaskBaseline) { pauseGovernor(st); return }
+      if (scanMs >= HARD_BUDGET_MS) { pauseGovernor(st); return }
+      if (scanMs >= SOFT_BUDGET_MS) {
+        st.consecutiveSlow += 1
+        if (st.consecutiveSlow >= CONSECUTIVE_SLOW_LIMIT) { pauseGovernor(st); return }
+      } else {
+        st.consecutiveSlow = 0
+      }
+      st.status = 'idle'
+      scheduleNext(sessionId)
+    }
+    const container = findScrollContainer()
+    obs = new MutationObserver(() => {
+      if (finished) return
+      if (quietTimer !== null) clearTimeout(quietTimer)
+      quietTimer = setTimeout(() => { finish(false) }, SETTLE_QUIET_MS)
+    })
+    obs.observe(container ?? document.body, { childList: true, subtree: true })
+    settleTimeout = setTimeout(() => { finish(true) }, SETTLE_TIMEOUT_MS)
   }
 
   const scan = (): void => {
     try {
       applySurgery()
-      autoLoadOlder()
       notify()
     } catch (err) {
       console.error('[dsh-tidychat] 扫描出错', err)
@@ -462,21 +595,39 @@ export function apply(ctx: any): void {
       } catch { /* keep defaults */ }
     }
     readConfig()
-    try { settingsScope.subscribe(() => { readConfig(); scan() }) } catch { /* ignore */ }
+    try {
+      settingsScope.subscribe(() => {
+        readConfig()
+        scan()
+        if (config.autoLoad && activeSessionId !== null) scheduleNext(activeSessionId)
+      })
+    } catch { /* ignore */ }
   }
 
   scan()
 
   ctx.effect(() => {
     let pending: ReturnType<typeof setTimeout> | null = null
-    const obs = new MutationObserver(() => {
-      if (pending !== null) return
-      pending = setTimeout(() => { pending = null; scan() }, 250)
-    })
-    obs.observe(document.body, { childList: true, subtree: true })
-    const intervalId = setInterval(() => { scan() }, 5000)
+    let obs: MutationObserver | null = null
+    let target: Node = document.body
+    // 收窄观察范围：优先 [data-conversation-scroll]（rc.7 会话滚动容器），
+    // 容器懒挂载前先观察 body，出现后切换。
+    const rebind = (): void => {
+      const container = findScrollContainer()
+      const next: Node = container ?? document.body
+      if (obs !== null && next === target) return
+      if (obs !== null) obs.disconnect()
+      target = next
+      obs = new MutationObserver(() => {
+        if (pending !== null) return
+        pending = setTimeout(() => { pending = null; scan() }, 250)
+      })
+      obs.observe(target, { childList: true, subtree: true })
+    }
+    rebind()
+    const intervalId = setInterval(() => { rebind(); scan() }, 5000)
     return () => {
-      obs.disconnect()
+      if (obs !== null) obs.disconnect()
       clearInterval(intervalId)
       if (pending !== null) clearTimeout(pending)
     }
@@ -517,6 +668,14 @@ export function apply(ctx: any): void {
 
       React.useEffect(() => {
         const sid = props.sessionId
+        // 会话桥：无论定位条开关与否，都把当前 sessionId 喂给 governor 并隔离其状态。
+        if (typeof sid === 'string' && sid !== '') {
+          activeSessionId = sid
+          if (!governor.has(sid)) {
+            governor.set(sid, { generation: 0, status: 'idle', consecutiveSlow: 0, longTaskBaseline: 0 })
+          }
+          scheduleNext(sid)
+        }
         if (typeof sid === 'undefined' || sid === null) return
         const binding = ctx.sessions.binding(sid)
         if (binding === undefined || binding.session === undefined) return
@@ -629,7 +788,7 @@ export function apply(ctx: any): void {
       ['fold', '自动折叠已完成轮次', '隐藏思考、工具调用与中间文字，只保留最终结论，控制条含处理时长。'],
       ['divider', '思考↔文字分隔线', '在思考行与正文文字之间插入实线，区分过程与结论。'],
       ['navigator', '左缘定位条', '聊天区左缘的细窄条状导航，悬停显示摘要、点击跳转到对应消息。'],
-      ['autoLoad', '自动加载更早历史', '发现「加载更早」按钮时自动点击，把全部历史纳入折叠与导航。'],
+      ['autoLoad', '智能加载更早历史', '在页面空闲时逐步加载更早记录；检测到页面响应下降时自动暂停，以保持长会话流畅。需要时仍可手动继续加载。'],
     ]
     const toggle = (field: string): void => {
       if (settingsScope === null) return
