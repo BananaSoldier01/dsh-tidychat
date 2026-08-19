@@ -43,11 +43,25 @@
 前置：已安装 DSH（Web 版），`pnpm` 在 PATH 上。
 
 ```sh
-# 从 GitHub 安装
-dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat.git
+# 从 GitHub 安装（推荐钉版本，可复现）
+dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat.git#v0.1.3
 ```
 
 安装后重启 dsh web + 硬刷新（Cmd+Shift+R）。
+
+### 更新
+
+插件以 profile 依赖的形式安装，更新就是让 pnpm 重新拉取该依赖的新版本（只拉这个插件，不会重下整个 DSH）：
+
+```sh
+# 方式 A：装的是 main 分支（不带 #tag），直接更新到最新
+dsh plugin --profile web update @bananasoldier01/dsh-tidychat
+
+# 方式 B：装的是某个 tag，改钉到新 tag 重新 add
+dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat.git#v0.1.3
+```
+
+更新后同样重启 dsh web + 硬刷新。
 
 > ⚠️ **让设置开关可写（仅 DSH ≤ 0.1.0-rc.6 需要）**：rc.6 及更早版本的「设置 > 插件配置」白名单硬编码在宿主编译产物里，默认不含第三方插件的命名空间，导致开关变灰不可点。运行下面命令把 `tidychat` 加进白名单（幂等；DSH 升级后重跑即可）：
 >
@@ -57,7 +71,11 @@ dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat
 >
 > **DSH ≥ 0.1.0-rc.7 不需要这条**：rc.7 起白名单机制移除，命名空间由插件动态注册，开关自动可点。
 
-> 💡 **版本兼容性**：`0.1.2` 适配 **DSH ≥ 0.1.0-rc.7**（rc.7 把 `settings.plugin.item` 槽从 list 改为 keyed，注册字段由 `id` 改为 `key`，旧版写法会报 "Failed to load plugins"）；**DSH ≤ 0.1.0-rc.6 请使用 `0.1.0`**。
+> 💡 **版本兼容性**：`0.1.3` 适配 **DSH ≥ 0.1.0-rc.7**（rc.7 把 `settings.plugin.item` 槽从 list 改为 keyed，注册字段由 `id` 改为 `key`，旧版写法会报 "Failed to load plugins"）；**DSH ≤ 0.1.0-rc.6 请使用 `0.1.0`**。
+
+## 🗺️ 路线图
+
+- **0.1.4（计划）**：① 左缘定位条窗口化——只渲染当前视野附近的消息、随滚动更新，解决长会话下定位条溢出屏幕；② 降低全量扫描成本（缓存行列表 + 无变化跳过），进一步缓解大 DOM 下的性能开销。
 
 ### 本地开发（link 模式）
 
