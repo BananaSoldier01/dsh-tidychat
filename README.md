@@ -75,12 +75,22 @@ dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat
 
 ## 🗺️ 路线图
 
-- **0.1.5（计划）**：
-  1. **`governorBusy` 改为 active-session 派生状态** —— 修跨会话 race：A 加载中途切到 B，A 的旧 settle 回调会把全局 `governorBusy` 清掉，破坏「每批只 scan 一次」。改为 `isGovernorBusy()` 从当前会话 status 派生。
-  2. **DOM 查询彻底收口到会话容器** —— `countAnchors`/`findLoadOlderButton` 改为「有容器只看容器、无容器才兜底 document」；document 兜底时不再匹配泛化的「加载更多/Load more」，仅匹配会话专属的「加载更早/Load earlier/Load older」。
-  3. **async cleanup 收口** —— `settingsScope.subscribe()` 保存 unsubscribe 并在 `ctx.effect` 清理；governor 的 setTimeout/requestIdleCallback/settle timer/observer 登记 lifecycle 清理（当前靠 generation 守卫兜底，HMR/reload 会残留空跑 timer）。
-  4. **降低全量扫描成本** —— 缓存行列表 + 无变化跳过，进一步缓解大 DOM 下的性能开销。
-  5. **⏳ 左缘定位条超长优化（方案未定，下个版本进行）** —— 定位条目前是 fixed 定位、每轮一根小条，轮次过多会超出屏幕上下被裁切。待定方案：窗口化（只渲染视野附近消息、随滚动更新）、或随会话内容滚动、或其它。方案确定前不实现。
+### 0.1.5（计划）—— 稳定性收尾 + 可观测性（低风险）
+
+1. **`governorBusy` 改为 active-session 派生状态** —— 修跨会话 race：A 加载中途切到 B，A 的旧 settle 回调会把全局 `governorBusy` 清掉，破坏「每批只 scan 一次」。状态枚举化（idle/loading/settling/paused/done），`isGovernorBusy()` 从当前会话 status 派生，不另设布尔。
+2. **DOM 查询系统收口到会话容器** —— `applySurgery` 主查询、`jumpTo`、`countAnchors`/`findLoadOlderButton` 全部收口到 `[data-conversation-scroll]`（带「容器未挂载回退」守卫）；按钮匹配删除泛化的「加载更多/Load more」，仅匹配会话专属的「加载更早/Load earlier/Load older」。
+3. **async cleanup 收口** —— disposers 数组统一清理 setTimeout/requestIdleCallback/settle timer/observer/subscribe；`generation` 守卫保留作第二道防线（cleanup 拦不住已进队列的 callback）。
+4. **避免无效扫描** —— 5 秒兜底加 dirty 门（无 mutation 时跳过全量扫描）；applySurgery 期间抑制 observer，防止「scan → 改 DOM → 又触发 scan」的自激循环。
+5. **可观测性** —— debug 模式输出性能报告（`turns` / `scan ms` / `nav rendered/total` / `autoload status`），验证 ④ 的效果 + 长会话问题诊断。
+
+### 0.1.6（计划）—— 性能版（单独版本，中高风险）
+
+1. **⏳ 左缘定位条超长优化（方案未定）** —— 定位条 fixed 定位、每轮一根小条，轮次过多会超出屏幕上下被裁切。待定方案：窗口化（只渲染视野附近消息、随滚动更新）、或随会话内容滚动、或其它。方案确定前不实现。
+2. **Turn Index 层** —— conversation DOM → Turn Index（id/element/position/summary），fold/navigator/autoload 共享索引，替代每次全量扫描；基于索引的增量维护（等真实 500+/1000+ 行数据再定方案）。
+
+### 候选 / 待定
+
+- **运行中回合的已完成步骤折叠**（issue #2）—— 新功能需求：单轮内 LLM 执行大量动作时，运行中实时折叠已完成步骤。需求强度待验证，0.1.6 之后再说。
 
 ### 本地开发（link 模式）
 
