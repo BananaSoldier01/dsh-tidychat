@@ -83,9 +83,6 @@ const CSS = `
   background: color-mix(in srgb, var(--dsw-alias-bg-layer-3, #fff) 74%, transparent);
   border: none;
   border-radius: 6px;
-  box-shadow:
-    0 1px 3px rgba(0, 0, 0, 0.14),
-    inset 0 0 0 1px var(--dsw-alias-border-l2, rgba(128, 128, 128, 0.32));
 }
 .tidychat-nav-slot:hover {
   background: transparent; /* 旧浏览器兜底 */
@@ -674,7 +671,10 @@ export function apply(ctx: any): void {
     }
   })
 
-  const measurePos = (): { left: number; top: number } | null => {
+  // 定位条横向占用：rail padding 2px + slot padding 6px×2 + 竖条最宽 30px ≈ 44px，留 4px 余量
+  const NAV_RAIL_WIDTH = 48
+
+  const measurePos = (): { left: number; top: number; gutter: number } | null => {
     // 新版 DSH 里 [data-slot="conversation.session"] 是 0×0 的空壳元素（slot host 未参与布局），
     // 用它测 rect 必然返回 null，导致定位条永远落到写死的 fallback。
     // 改用真实会话滚动容器 [data-conversation-scroll] 作为锚点，贴住会话区实际左缘。
@@ -682,7 +682,11 @@ export function apply(ctx: any): void {
     if (host === null) return null
     const r = host.getBoundingClientRect()
     if (r.width < 10 || r.height < 10) return null
-    return { left: r.left, top: r.top + r.height * 0.5 }
+    // 会话内容居中且 max-width 748px：宽窗口时左右有留白，窄窗口时内容铺满、左侧留白归零，
+    // 定位条会压到正文/输入框。测内容真实左缘与容器左缘的间距（gutter），不足定位条宽度即隐藏。
+    const content = document.querySelector('[data-composer-card]') ?? document.querySelector('[data-chat-anchor-key]')
+    const gutter = content !== null ? Math.max(0, content.getBoundingClientRect().left - r.left) : r.width
+    return { left: r.left, top: r.top + r.height * 0.5, gutter }
   }
 
   const hhmm = (ms: number): string => {
@@ -704,7 +708,7 @@ export function apply(ctx: any): void {
   ctx.slots.inject('conversation.session.header.utilities', () => ctx.slots.register(
     { name: 'conversation.session.header.utilities', id: 'tidychat-nav' },
     (props: any) => {
-      const [pos, setPos] = React.useState<{ left: number; top: number } | null>(null)
+      const [pos, setPos] = React.useState<{ left: number; top: number; gutter: number } | null>(null)
       const [snapshot, setSnapshot] = React.useState<any>(null)
       const [tip, setTip] = React.useState<any>(null)
       const [hover, setHover] = React.useState<number | null>(null)
@@ -736,14 +740,26 @@ export function apply(ctx: any): void {
         const refresh = () => { setPos(measurePos()); setEnabled(config.navigator) }
         refresh()
         listeners.push(refresh)
+        // 侧栏展开/收起会改变会话容器尺寸，ResizeObserver + window resize 立即重排，消除 5s 兜底延迟
+        let resizeObs: ResizeObserver | null = null
+        const container = findScrollContainer()
+        if (container !== null && typeof ResizeObserver !== 'undefined') {
+          resizeObs = new ResizeObserver(() => { refresh() })
+          resizeObs.observe(container)
+        }
+        window.addEventListener('resize', refresh)
         return () => {
           try { unsub() } catch { /* ignore */ }
           const i = listeners.indexOf(refresh)
           if (i >= 0) listeners.splice(i, 1)
+          resizeObs?.disconnect()
+          window.removeEventListener('resize', refresh)
         }
       }, [props.sessionId])
 
       if (!enabled) return null
+      // 会话内容左侧留白不足以容纳定位条时隐藏（Codex 同款「空间足够才显示」）
+      if (pos !== null && pos.gutter < NAV_RAIL_WIDTH) return null
 
       const users: Array<{ seq: number; time: number; summary: string }> = []
       if (snapshot !== null && snapshot !== undefined && Array.isArray(snapshot.nodes)) {
