@@ -69,23 +69,34 @@ const CSS = `
   z-index: 40;
   display: flex;
   flex-direction: column;
-  padding: 6px 0;
+  align-items: flex-start;
+  padding: 6px 2px;
 }
 .tidychat-nav-slot {
   display: flex;
   align-items: center;
   height: 18px;
-  width: 34px;
+  margin: 1px 0;
+  padding: 0 6px;
   cursor: pointer;
-  background: transparent;
+  background: transparent; /* 旧浏览器兜底：color-mix 不支持时退回无底衬 */
+  background: color-mix(in srgb, var(--dsw-alias-bg-layer-3, #fff) 74%, transparent);
   border: none;
-  padding: 0;
+  border-radius: 6px;
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.14),
+    inset 0 0 0 1px var(--dsw-alias-border-l2, rgba(128, 128, 128, 0.32));
+}
+.tidychat-nav-slot:hover {
+  background: transparent; /* 旧浏览器兜底 */
+  background: color-mix(in srgb, var(--dsw-alias-bg-layer-3, #fff) 96%, transparent);
 }
 .tidychat-nav-bar {
   display: block;
   height: 3px;
   border-radius: 2px;
-  background: var(--dsw-alias-label-caption, rgba(127,127,127,0.5));
+  background: var(--dsw-alias-label-caption, rgba(127, 127, 127, 0.5)); /* 旧浏览器兜底：保证竖条有颜色 */
+  background: color-mix(in srgb, var(--dsw-alias-label-primary, #222) 78%, transparent);
   transition: width 120ms ease, background 120ms ease;
 }
 .tidychat-nav-bar.hot {
@@ -664,11 +675,14 @@ export function apply(ctx: any): void {
   })
 
   const measurePos = (): { left: number; top: number } | null => {
-    const host = document.querySelector('[data-slot="conversation.session"]')
+    // 新版 DSH 里 [data-slot="conversation.session"] 是 0×0 的空壳元素（slot host 未参与布局），
+    // 用它测 rect 必然返回 null，导致定位条永远落到写死的 fallback。
+    // 改用真实会话滚动容器 [data-conversation-scroll] 作为锚点，贴住会话区实际左缘。
+    const host = document.querySelector('[data-conversation-scroll]')
     if (host === null) return null
     const r = host.getBoundingClientRect()
     if (r.width < 10 || r.height < 10) return null
-    return { left: r.left + 4, top: r.top + r.height * 0.5 }
+    return { left: r.left, top: r.top + r.height * 0.5 }
   }
 
   const hhmm = (ms: number): string => {
@@ -767,7 +781,7 @@ export function apply(ctx: any): void {
 
       if (users.length === 0) return null
       const style = pos === null
-        ? { left: '284px', top: '50vh' }
+        ? { left: '280px', top: '50vh' }
         : { left: pos.left + 'px', top: pos.top + 'px' }
       const rail = React.createElement('div', {
         className: 'tidychat-nav-rail',
