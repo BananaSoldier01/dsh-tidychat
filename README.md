@@ -79,7 +79,7 @@ dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat
   1. **`governorBusy` 改为 active-session 派生状态** —— 修跨会话 race：A 加载中途切到 B，A 的旧 settle 回调会把全局 `governorBusy` 清掉，破坏「每批只 scan 一次」。改为 `isGovernorBusy()` 从当前会话 status 派生。
   2. **DOM 查询彻底收口到会话容器** —— `countAnchors`/`findLoadOlderButton` 改为「有容器只看容器、无容器才兜底 document」；document 兜底时不再匹配泛化的「加载更多/Load more」，仅匹配会话专属的「加载更早/Load earlier/Load older」。
   3. **async cleanup 收口** —— `settingsScope.subscribe()` 保存 unsubscribe 并在 `ctx.effect` 清理；governor 的 setTimeout/requestIdleCallback/settle timer/observer 登记 lifecycle 清理（当前靠 generation 守卫兜底，HMR/reload 会残留空跑 timer）。
-  4. **左缘定位条窗口化** —— 只渲染当前视野附近的消息、随滚动更新，解决长会话下定位条溢出屏幕。
+  4. **左缘定位条溢出长会话（方案未定）** —— 定位条目前是 fixed 定位、每轮一根小条，轮次过多会超出屏幕上下被裁切。待定方案：窗口化（只渲染视野附近消息、随滚动更新）、或随会话内容滚动、或其它。方案确定前不实现。
   5. **降低全量扫描成本** —— 缓存行列表 + 无变化跳过，进一步缓解大 DOM 下的性能开销。
 
 ### 本地开发（link 模式）
