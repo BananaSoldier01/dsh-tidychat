@@ -305,7 +305,7 @@ export function apply(ctx: any): void {
   }
 
   // 设置：tidychat 命名空间，四个开关；读不到 settings 服务时全开。
-  const config = { fold: true, divider: true, navigator: true, autoLoad: true }
+  const config = { fold: true, divider: true, navigator: true, autoLoad: true, debug: false }
   let settingsScope: any = null
   const settingsFace = ctx.get('webUiSettings') ?? ctx.get('settingsScope')
   if (settingsFace !== undefined && typeof settingsFace.bind === 'function') {
@@ -650,7 +650,13 @@ export function apply(ctx: any): void {
 
   // ===== 可观测性（debug 模式性能报告）=====
   const debugEnabled = (): boolean => {
-    try { return localStorage.getItem('dsh-tidychat-debug') === '1' || (window as any).__tidychatDebug === true } catch { return false }
+    if (config.debug) return true
+    try {
+      if (localStorage.getItem('dsh-tidychat-debug') === '1') return true
+      if ((window as any).__tidychatDebug === true) return true
+      if (/[?&]tidychat-debug=1/.test(location.search)) return true
+    } catch { /* ignore */ }
+    return false
   }
   const report = (): void => {
     if (!debugEnabled()) return
@@ -684,6 +690,7 @@ export function apply(ctx: any): void {
           config.divider = snap.value.divider ?? true
           config.navigator = snap.value.navigator ?? true
           config.autoLoad = snap.value.autoLoad ?? true
+          config.debug = snap.value.debug ?? false
         }
       } catch { /* keep defaults */ }
     }
@@ -904,13 +911,14 @@ export function apply(ctx: any): void {
       try { unsub = settingsScope.subscribe(pull) } catch { unsub = () => {} }
       return () => { try { unsub() } catch { /* ignore */ } }
     }, [])
-    const value = (snap !== null && snap !== undefined && snap.value) ? snap.value : { fold: true, divider: true, navigator: true, autoLoad: true }
+    const value = (snap !== null && snap !== undefined && snap.value) ? snap.value : { fold: true, divider: true, navigator: true, autoLoad: true, debug: false }
     const writable = snap !== null && snap !== undefined ? snap.writable : false
     const fields: Array<[string, string, string]> = [
       ['fold', '自动折叠已完成轮次', '隐藏思考、工具调用与中间文字，只保留最终结论，控制条含处理时长。'],
       ['divider', '思考↔文字分隔线', '在思考行与正文文字之间插入实线，区分过程与结论。'],
       ['navigator', '左缘定位条', '聊天区左缘的细窄条状导航，悬停显示摘要、点击跳转到对应消息。'],
       ['autoLoad', '智能加载更早历史', '在页面空闲时逐步加载更早记录；检测到页面响应下降时自动暂停，以保持长会话流畅。需要时仍可手动继续加载。'],
+      ['debug', '调试输出', '在控制台每 10s 打印性能报告（轮次数 / 扫描耗时 / 定位条数量 / 自动加载状态），用于排查长会话问题。'],
     ]
     const toggle = (field: string): void => {
       if (settingsScope === null) return
