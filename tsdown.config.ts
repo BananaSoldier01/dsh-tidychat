@@ -1,4 +1,8 @@
 import type { UserConfig } from 'tsdown'
+import { createRequire } from 'node:module'
+
+const require = createRequire(import.meta.url)
+const PLUGIN_VERSION = require('./package.json').version
 
 const ID = '@bananasoldier01/dsh-tidychat'
 // 客户端 bundle 允许 external 的宿主模块（由 loader 的 require 提供）。
@@ -37,6 +41,9 @@ const clientConfig: UserConfig = {
     banner: `window.__ModuleLoader__.load({ id: ${JSON.stringify(ID)}, factory: (require) => {`,
     footer: 'return module.exports; } });',
     intro: 'var module = { exports: {} }; var exports = module.exports;',
+  },
+  define: {
+    __PLUGIN_VERSION__: JSON.stringify(PLUGIN_VERSION),
   },
 }
 

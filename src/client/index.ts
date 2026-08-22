@@ -14,6 +14,9 @@
 
 import * as React from 'react'
 
+// 构建时由 tsdown define 注入插件版本（package.json version）
+declare const __PLUGIN_VERSION__: string
+
 export const inject = ['slots', 'sessions'] as const
 
 const CSS = `
@@ -206,6 +209,21 @@ const CSS = `
   font-size: 12px;
   line-height: 1.5;
 }
+.tidychat-report-field {
+  margin-top: 12px;
+}
+.tidychat-report-btn {
+  font-size: 13px;
+  cursor: pointer;
+  border: 1px solid var(--dsw-alias-border-l2, rgba(128,128,128,0.4));
+  background: var(--dsw-alias-interactive-bg-hover, rgba(127,127,127,0.08));
+  color: var(--dsw-alias-label-primary, #222);
+  border-radius: 8px;
+  padding: 6px 14px;
+}
+.tidychat-report-btn:hover {
+  background: var(--dsw-alias-interactive-bg-hover, rgba(127,127,127,0.14));
+}
 .tidychat-switch {
   appearance: none;
   border: none;
@@ -305,7 +323,7 @@ export function apply(ctx: any): void {
   }
 
   // 设置：tidychat 命名空间，四个开关；读不到 settings 服务时全开。
-  const config = { fold: true, divider: true, navigator: true, autoLoad: true, debug: false }
+  const config = { fold: true, divider: true, navigator: true, autoLoad: true }
   let settingsScope: any = null
   const settingsFace = ctx.get('webUiSettings') ?? ctx.get('settingsScope')
   if (settingsFace !== undefined && typeof settingsFace.bind === 'function') {
@@ -650,7 +668,6 @@ export function apply(ctx: any): void {
 
   // ===== 可观测性（debug 模式性能报告）=====
   const debugEnabled = (): boolean => {
-    if (config.debug) return true
     try {
       if (localStorage.getItem('dsh-tidychat-debug') === '1') return true
       if ((window as any).__tidychatDebug === true) return true
@@ -680,6 +697,35 @@ export function apply(ctx: any): void {
     }
   })
 
+  // ===== 一键报告问题：组装诊断报告 → 复制剪贴板 → 打开预填 GitHub issue =====
+  const buildReport = (): string => {
+    const st = activeSessionId !== null ? governor.get(activeSessionId) : undefined
+    const turns = scopedRows('[data-chat-anchor-key]').filter((r) => r.getAttribute('data-chat-flow-kind') === 'user').length
+    return [
+      '## 问题报告（dsh-tidychat 自动生成）',
+      '',
+      `- 时间：${new Date().toLocaleString()}`,
+      '- DSH 版本：请运行 `dsh --version` 后填写（如 0.1.1-rc.2）',
+      `- 插件版本：${__PLUGIN_VERSION__}`,
+      `- 浏览器：${navigator.userAgent}`,
+      `- 会话轮次：${turns}`,
+      `- 最近扫描耗时：${Math.round(lastScanMs)}ms`,
+      `- 定位条：${turns}/${turns}`,
+      `- 自动加载状态：${st?.status ?? 'n/a'}`,
+      '',
+      '### 开关配置',
+      `- fold: ${config.fold} / divider: ${config.divider} / navigator: ${config.navigator} / autoLoad: ${config.autoLoad}`,
+      '',
+      '### 问题描述',
+      '（请描述遇到的问题，例如：长会话滚动卡顿、定位条不显示、自动加载异常…）',
+    ].join('\n')
+  }
+  const reportAndOpenIssue = (): void => {
+    const text = buildReport()
+    try { navigator.clipboard?.writeText(text) } catch { /* 剪贴板失败时预填 URL 仍可用 */ }
+    window.open('https://github.com/BananaSoldier01/dsh-tidychat/issues/new?body=' + encodeURIComponent(text), '_blank')
+  }
+
   // 设置读取 + 订阅（设置面板改动即时生效）
   if (settingsScope !== null) {
     const readConfig = (): void => {
@@ -690,7 +736,6 @@ export function apply(ctx: any): void {
           config.divider = snap.value.divider ?? true
           config.navigator = snap.value.navigator ?? true
           config.autoLoad = snap.value.autoLoad ?? true
-          config.debug = snap.value.debug ?? false
         }
       } catch { /* keep defaults */ }
     }
@@ -918,7 +963,6 @@ export function apply(ctx: any): void {
       ['divider', '思考↔文字分隔线', '在思考行与正文文字之间插入实线，区分过程与结论。'],
       ['navigator', '左缘定位条', '聊天区左缘的细窄条状导航，悬停显示摘要、点击跳转到对应消息。'],
       ['autoLoad', '智能加载更早历史', '在页面空闲时逐步加载更早记录；检测到页面响应下降时自动暂停，以保持长会话流畅。需要时仍可手动继续加载。'],
-      ['debug', '调试输出', '在控制台每 10s 打印性能报告（轮次数 / 扫描耗时 / 定位条数量 / 自动加载状态），用于排查长会话问题。'],
     ]
     const toggle = (field: string): void => {
       if (settingsScope === null) return
@@ -958,6 +1002,14 @@ export function apply(ctx: any): void {
           ),
           React.createElement('p', { className: 'tidychat-field-hint' }, hint),
         )),
+        React.createElement('div', { key: 'report', className: 'tidychat-report-field' },
+          React.createElement('button', {
+            type: 'button',
+            className: 'tidychat-report-btn',
+            onClick: () => { try { reportAndOpenIssue() } catch { /* ignore */ } },
+          }, '📤 生成诊断报告并提交'),
+          React.createElement('p', { className: 'tidychat-field-hint' }, '遇到卡顿等问题时点击：自动生成报告（版本/浏览器/性能数据）并打开 GitHub 新建 issue 页，检查后提交即可。'),
+        ),
       ) : null,
     )
   }

@@ -22,8 +22,6 @@ export interface Config {
   navigator?: boolean
   /** 页面空闲时逐步加载更早历史；检测到性能压力时自动暂停。 */
   autoLoad?: boolean
-  /** 调试输出：控制台每 10s 打印性能报告（turns / scanMs / navItems / autoload）。 */
-  debug?: boolean
 }
 
 export const Config: z<Config> = z.object({
@@ -31,7 +29,6 @@ export const Config: z<Config> = z.object({
   divider: z.boolean().default(true),
   navigator: z.boolean().default(true),
   autoLoad: z.boolean().default(true),
-  debug: z.boolean().default(false),
 })
 
 export const inject: string[] = []
