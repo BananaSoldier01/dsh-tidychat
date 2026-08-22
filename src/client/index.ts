@@ -212,6 +212,31 @@ const CSS = `
 .tidychat-report-field {
   margin-top: 12px;
 }
+.tidychat-report-tags-label {
+  font-size: 12px;
+  color: var(--dsw-alias-label-secondary, #666);
+  margin-bottom: 6px;
+}
+.tidychat-report-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.tidychat-report-tag {
+  font-size: 12px;
+  cursor: pointer;
+  border: 1px solid var(--dsw-alias-border-l2, rgba(128,128,128,0.4));
+  background: transparent;
+  color: var(--dsw-alias-label-secondary, #666);
+  border-radius: 999px;
+  padding: 3px 10px;
+}
+.tidychat-report-tag-on {
+  background: var(--dsw-alias-interactive-bg-hover, rgba(127,127,127,0.12));
+  color: var(--dsw-alias-label-primary, #222);
+  border-color: var(--dsw-alias-state-business-primary, #3b82f6);
+}
 .tidychat-report-btn {
   font-size: 13px;
   cursor: pointer;
@@ -267,6 +292,8 @@ function injectStyle(css: string): () => void {
   document.head.appendChild(tag)
   return () => { tag.remove() }
 }
+
+const REPORT_TAGS: ReadonlyArray<string> = ['滚动卡顿', '输入卡顿', '界面卡顿', '定位条异常', '自动加载异常', '折叠异常']
 
 export function apply(ctx: any): void {
   ctx.effect(() => injectStyle(CSS))
@@ -702,11 +729,17 @@ export function apply(ctx: any): void {
   })
 
   // ===== 一键报告问题：组装诊断报告 → 复制剪贴板 → 打开预填 GitHub issue =====
-  const buildReport = (): string => {
+  const buildReport = (tags: ReadonlyArray<string>): string => {
     const st = activeSessionId !== null ? governor.get(activeSessionId) : undefined
     const rows = scopedRows('[data-chat-anchor-key]')
     const turns = rows.filter((r) => r.getAttribute('data-chat-flow-kind') === 'user').length
     const hasMore = findLoadOlderButton() !== null
+    // 系统检测：异常状态自动预填（避免用户空手提交无诊断价值的内容）
+    const issues: string[] = []
+    if (peakScanMs >= SOFT_BUDGET_MS) issues.push(`扫描峰值 ${Math.round(peakScanMs)}ms（≥${SOFT_BUDGET_MS}ms 预算），可能存在卡顿迹象`)
+    if (st?.status === 'paused') issues.push('自动加载已暂停（性能闸门触发）')
+    if (!config.autoLoad) issues.push('自动加载已关闭，历史窗口偏小')
+    if (config.autoLoad && hasMore && st?.status === 'idle') issues.push('自动加载开启但未在加载，且仍有更早历史未加载')
     return [
       '## 问题报告（dsh-tidychat 自动生成）',
       '',
@@ -736,13 +769,17 @@ export function apply(ctx: any): void {
       '',
       '### 开关配置',
       `- fold: ${config.fold} / divider: ${config.divider} / navigator: ${config.navigator} / autoLoad: ${config.autoLoad}`,
+      ...(issues.length > 0 ? ['', '### 系统检测（自动）', ...issues.map((i) => `- ⚠️ ${i}`)] : []),
       '',
       '### 问题描述',
-      '（请描述遇到的问题，例如：长会话滚动卡顿、定位条不显示、自动加载异常…）',
+      ...(tags.length > 0 ? [`- 现象：${tags.join('、')}`] : []),
+      tags.length === 0 && issues.length === 0
+        ? '（请描述遇到的问题，例如：长会话滚动卡顿、定位条不显示、自动加载异常…）'
+        : '（如无需补充说明，直接提交即可）',
     ].join('\n')
   }
-  const reportAndOpenIssue = (): void => {
-    const text = buildReport()
+  const reportAndOpenIssue = (tags: ReadonlyArray<string>): void => {
+    const text = buildReport(tags)
     try { navigator.clipboard?.writeText(text) } catch { /* 剪贴板失败时预填 URL 仍可用 */ }
     window.open('https://github.com/BananaSoldier01/dsh-tidychat/issues/new?body=' + encodeURIComponent(text), '_blank')
   }
@@ -968,6 +1005,7 @@ export function apply(ctx: any): void {
   // 设置卡片（「设置 > 插件配置」里的四个开关，写入 tidychat 命名空间并即时生效）
   const TidychatSettingsCard = () => {
     const [open, setOpen] = React.useState(false)
+    const [reportTags, setReportTags] = React.useState<ReadonlyArray<string>>([])
     const [snap, setSnap] = React.useState<any>(null)
     React.useEffect(() => {
       if (settingsScope === null) { setSnap(null); return }
@@ -1024,12 +1062,21 @@ export function apply(ctx: any): void {
           React.createElement('p', { className: 'tidychat-field-hint' }, hint),
         )),
         React.createElement('div', { key: 'report', className: 'tidychat-report-field' },
+          React.createElement('div', { className: 'tidychat-report-tags-label' }, '现象（可多选）：'),
+          React.createElement('div', { className: 'tidychat-report-tags' },
+            REPORT_TAGS.map((t) => React.createElement('button', {
+              key: t,
+              type: 'button',
+              className: 'tidychat-report-tag' + (reportTags.includes(t) ? ' tidychat-report-tag-on' : ''),
+              onClick: () => setReportTags((prev) => prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]),
+            }, t)),
+          ),
           React.createElement('button', {
             type: 'button',
             className: 'tidychat-report-btn',
-            onClick: () => { try { reportAndOpenIssue() } catch { /* ignore */ } },
+            onClick: () => { try { reportAndOpenIssue(reportTags) } catch { /* ignore */ } },
           }, '📤 生成诊断报告并提交'),
-          React.createElement('p', { className: 'tidychat-field-hint' }, '遇到卡顿等问题时点击：自动生成报告（版本/浏览器/性能数据）并打开 GitHub 新建 issue 页，检查后提交即可。'),
+          React.createElement('p', { className: 'tidychat-field-hint' }, '勾选现象后点击：自动生成报告（含检测到的异常）并打开 GitHub 新建 issue 页，检查后提交即可。'),
         ),
       ) : null,
     )
