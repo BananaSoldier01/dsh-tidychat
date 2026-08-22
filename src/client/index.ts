@@ -858,9 +858,12 @@ export function apply(ctx: any): void {
   const NAV_RAIL_BAR_LEN_CURRENT = 22
   const NAV_RAIL_FISH_EYE_RADIUS = 4
   const NAV_RAIL_FISH_EYE_BOOST = 0.5
+  const NAV_RAIL_TURN_SPACING = 12
+  const NAV_RAIL_MIN_HEIGHT = 48
   const HEADER_OFFSET = 64
 
-  const railHeight = (): number => Math.min(window.innerHeight * 0.7, 660)
+  // 轨道高度自适应：turn 少时按 12px/轮 收紧（不用最大高度），turn 多时封顶 min(70vh, 660px)
+  const railHeight = (n: number): number => Math.min(Math.min(window.innerHeight * 0.7, 660), Math.max(NAV_RAIL_MIN_HEIGHT, n * NAV_RAIL_TURN_SPACING))
 
   // 导航条（挂到会话头部 utilities 槽，fixed 定位到聊天区左缘；独立开关 navigator）
   ctx.slots.inject('conversation.session.header.utilities', () => ctx.slots.register(
@@ -873,17 +876,18 @@ export function apply(ctx: any): void {
       const [current, setCurrent] = React.useState<number | null>(null)
       const [enabled, setEnabled] = React.useState<boolean>(config.navigator)
       const canvasRef = React.useRef<HTMLCanvasElement | null>(null)
-      // 行位置缓存：scroll 无关的内容坐标（相对滚动容器），供「当前 turn 检测 + 跳转」二分
-      const rowCacheRef = React.useRef<{ rows: Element[]; tops: number[]; count: number }>({ rows: [], tops: [], count: -1 })
+      // 行位置缓存：scroll 无关的内容坐标（相对滚动容器），供「当前 turn 检测 + 跳转」二分。
+      // scrollH 记录缓存构建时的容器内容高度——折叠/加载会改变布局（行数可能不变但位置变），用它判定重算。
+      const rowCacheRef = React.useRef<{ rows: Element[]; tops: number[]; count: number; scrollH: number }>({ rows: [], tops: [], count: -1, scrollH: -1 })
 
       const userRows = (): Element[] => scopedRows('[data-chat-anchor-key]').filter((r) => r.getAttribute('data-chat-flow-kind') === 'user')
-      const rebuildRowCache = (count: number): void => {
+      const rebuildRowCache = (count: number, scrollH: number): void => {
         const rows = userRows()
         const container = findScrollContainer()
-        if (container === null) { rowCacheRef.current = { rows: [], tops: [], count }; return }
+        if (container === null) { rowCacheRef.current = { rows: [], tops: [], count, scrollH }; return }
         const cRect = container.getBoundingClientRect()
         const tops = rows.map((r) => r.getBoundingClientRect().top - cRect.top + container.scrollTop)
-        rowCacheRef.current = { rows, tops, count }
+        rowCacheRef.current = { rows, tops, count, scrollH }
       }
       // 当前 turn = 阅读区顶部（容器顶 + header 偏移）最近的上方 user 行
       const detectCurrent = (): void => {
@@ -941,7 +945,7 @@ export function apply(ctx: any): void {
         if (canvas === null) return
         const n = users.length
         if (n === 0) return
-        const H = railHeight()
+        const H = railHeight(users.length)
         const W = NAV_RAIL_WIDTH - 8
         const dpr = window.devicePixelRatio || 1
         if (canvas.width !== Math.round(W * dpr) || canvas.height !== Math.round(H * dpr)) {
@@ -1046,9 +1050,13 @@ export function apply(ctx: any): void {
         }
       }
 
-      // 每轮渲染后：重建行缓存（行数变化时）→ 检测当前 turn → 重绘 canvas
+      // 每轮渲染后：行数或内容高度变化（折叠/加载）→ 重建行缓存 → 检测当前 turn → 重绘 canvas
       React.useEffect(() => {
-        if (rowCacheRef.current.count !== users.length) rebuildRowCache(users.length)
+        const container = findScrollContainer()
+        const scrollH = container !== null ? container.scrollHeight : 0
+        if (rowCacheRef.current.count !== users.length || rowCacheRef.current.scrollH !== scrollH) {
+          rebuildRowCache(users.length, scrollH)
+        }
         detectCurrent()
         redraw()
       })
@@ -1067,7 +1075,7 @@ export function apply(ctx: any): void {
         const canvas = canvasRef.current
         if (canvas === null) return
         const rect = canvas.getBoundingClientRect()
-        const idx = indexFromY(ev.clientY - rect.top, layoutPositions(users.length, hover, railHeight()))
+        const idx = indexFromY(ev.clientY - rect.top, layoutPositions(users.length, hover, railHeight(users.length)))
         if (idx !== hover) setHover(idx)
         const u = users[idx]
         if (u !== undefined) setTip({ x: ev.clientX + 18, y: ev.clientY - 8, num: idx + 1, time: u.time !== undefined && u.time !== null ? hhmm(u.time) : '', text: u.summary })
@@ -1080,7 +1088,7 @@ export function apply(ctx: any): void {
         const canvas = canvasRef.current
         if (canvas !== null) {
           const rect = canvas.getBoundingClientRect()
-          const idx = indexFromY(ev.clientY - rect.top, layoutPositions(users.length, hover, railHeight()))
+          const idx = indexFromY(ev.clientY - rect.top, layoutPositions(users.length, hover, railHeight(users.length)))
           jumpTo(idx)
         }
         try { ev.currentTarget.releasePointerCapture(ev.pointerId) } catch { /* 忽略 */ }
