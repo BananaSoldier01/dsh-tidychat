@@ -267,15 +267,42 @@ export function apply(ctx: any): void {
   const NULL_RETRY_LIMIT = 15
   const NULL_RETRY_DELAY_MS = 2000
 
+  type GovernorStatus = 'idle' | 'loading' | 'settling' | 'paused' | 'done'
+
   interface AutoLoadState {
     generation: number
-    status: 'idle' | 'loading' | 'paused' | 'done'
+    status: GovernorStatus
     consecutiveSlow: number
     nullStreak: number
   }
   const governor = new Map<string, AutoLoadState>()
   let activeSessionId: string | null = null
-  let governorBusy = false
+
+  // batch 是否进行中：从「当前活跃会话」的 status 派生（旧会话的异步回调永远无法影响新会话）
+  const isGovernorBusy = (): boolean => {
+    if (activeSessionId === null) return false
+    const st = governor.get(activeSessionId)
+    return st !== undefined && (st.status === 'loading' || st.status === 'settling')
+  }
+
+  // 可观测性 / 无效扫描：扫描耗时 + dirty 标记（5 秒兜底发现无变化时跳过全量扫描）
+  let lastScanMs = 0
+  let dirty = false
+
+  // 生命周期清理登记：一次性 timer/订阅在 ctx.effect 里统一清理；
+  // generation 守卫保留作第二道防线（cleanup 拦不住已进入事件队列的 callback）。
+  const disposers: Array<() => void> = []
+  ctx.effect(() => () => {
+    for (const d of disposers.splice(0)) { try { d() } catch { /* ignore */ } }
+  })
+  /** 登记一次性资源；资源自然结束时调用返回的 off() 摘除，避免登记表无限增长。 */
+  const track = (dispose: () => void): (() => void) => {
+    disposers.push(dispose)
+    return () => {
+      const i = disposers.indexOf(dispose)
+      if (i >= 0) disposers.splice(i, 1)
+    }
+  }
 
   // 设置：tidychat 命名空间，四个开关；读不到 settings 服务时全开。
   const config = { fold: true, divider: true, navigator: true, autoLoad: true }
@@ -312,7 +339,7 @@ export function apply(ctx: any): void {
     let inline = 0
     let foldedCount = 0
     let hiddenContext = 0
-    const all = Array.from(document.querySelectorAll('[data-chat-anchor-key]'))
+    const all = scopedRows('[data-chat-anchor-key]')
 
     // 1) 行内思考↔文字分隔线（独立开关 divider）
     if (config.divider) {
@@ -459,34 +486,26 @@ export function apply(ctx: any): void {
 
   const findScrollContainer = (): Element | null => document.querySelector('[data-conversation-scroll]')
 
+  // DOM 查询统一收口到会话容器：容器存在只看容器，未挂载才回退 document（防 hero/空会话态失效）。
+  const scopedRows = (selector: string): Element[] => {
+    const container = findScrollContainer()
+    return Array.from((container ?? document).querySelectorAll<Element>(selector))
+  }
+
   const isLoadOlderButton = (b: Element): boolean => {
     const t = (b.textContent || '').trim()
-    return t === '加载更早' || t === '加载更多' || t === 'Load earlier' || t === 'Load older' || t === 'Load more'
+    // 仅匹配会话专属文案；移除泛化的「加载更多 / Load more」，避免误点其它列表的同名按钮
+    return t === '加载更早' || t === 'Load earlier' || t === 'Load older'
   }
 
   const findLoadOlderButton = (): HTMLButtonElement | null => {
-    // 优先在会话滚动容器内找，找不到再回退全文档（防按钮不在容器内的布局差异）
-    const container = findScrollContainer()
-    const scopes: ParentNode[] = container !== null ? [container, document] : [document]
-    for (const scope of scopes) {
-      const buttons = Array.from(scope.querySelectorAll('button'))
-      for (const b of buttons) {
-        if (isLoadOlderButton(b)) return b as HTMLButtonElement
-      }
+    for (const b of scopedRows('button')) {
+      if (isLoadOlderButton(b)) return b as HTMLButtonElement
     }
     return null
   }
 
-  const countAnchors = (): number => {
-    const container = findScrollContainer()
-    const scopes: ParentNode[] = container !== null ? [container, document] : [document]
-    // 去重计数：容器内外若重叠，只算一次
-    const seen = new Set<Element>()
-    for (const scope of scopes) {
-      for (const el of Array.from(scope.querySelectorAll<Element>('[data-chat-anchor-key]'))) seen.add(el)
-    }
-    return seen.size
-  }
+  const countAnchors = (): number => scopedRows('[data-chat-anchor-key]').length
 
   // 单次「加载一页后」的受控测量：只测 applySurgery 的耗时（DOM 越大越贵），随后通知导航条刷新。
   const measuredScan = (): number => {
@@ -526,11 +545,14 @@ export function apply(ctx: any): void {
       if (cur === undefined || cur.generation !== gen || cur.status !== 'idle') return
       loadOnePage(sessionId, gen)
     }
+    let off: () => void = () => {}
     const w = window as any
     if (typeof w.requestIdleCallback === 'function') {
-      w.requestIdleCallback(run, { timeout: 2000 })
+      const id = w.requestIdleCallback(() => { off(); run() }, { timeout: 2000 })
+      off = track(() => w.cancelIdleCallback(id))
     } else {
-      setTimeout(run, IDLE_FALLBACK_MS)
+      const id = setTimeout(() => { off(); run() }, IDLE_FALLBACK_MS)
+      off = track(() => clearTimeout(id))
     }
   }
 
@@ -546,18 +568,21 @@ export function apply(ctx: any): void {
       if (st.nullStreak >= NULL_RETRY_LIMIT) { st.status = 'done'; return }
       st.nullStreak += 1
       st.status = 'idle'
-      setTimeout(() => { scheduleNext(sessionId) }, NULL_RETRY_DELAY_MS)
+      let off: () => void = () => {}
+      const id = setTimeout(() => { off(); scheduleNext(sessionId) }, NULL_RETRY_DELAY_MS)
+      off = track(() => clearTimeout(id))
       return
     }
     st.nullStreak = 0
     if (btn.disabled) {
       // 可能是暂时 loading/不可用，保持 idle 稍后重试，而非永久 done
       st.status = 'idle'
-      setTimeout(() => { scheduleNext(sessionId) }, NULL_RETRY_DELAY_MS)
+      let off: () => void = () => {}
+      const id = setTimeout(() => { off(); scheduleNext(sessionId) }, NULL_RETRY_DELAY_MS)
+      off = track(() => clearTimeout(id))
       return
     }
     st.status = 'loading'
-    governorBusy = true
     const before = countAnchors()
     // 先挂 settle observer + 超时，再点击，避免点击同步触发 DOM 变化时漏观察
     settleThenMeasure(sessionId, gen, before)
@@ -565,6 +590,9 @@ export function apply(ctx: any): void {
   }
 
   function settleThenMeasure(sessionId: string, gen: number, before: number): void {
+    // batch 进入 settle 阶段（busy 由 isGovernorBusy 从当前会话 status 派生）
+    const st0 = governor.get(sessionId)
+    if (st0 !== undefined) st0.status = 'settling'
     let quietTimer: ReturnType<typeof setTimeout> | null = null
     let settleTimeout: ReturnType<typeof setTimeout> | null = null
     let obs: MutationObserver | null = null
@@ -575,16 +603,15 @@ export function apply(ctx: any): void {
       if (quietTimer !== null) clearTimeout(quietTimer)
       if (settleTimeout !== null) clearTimeout(settleTimeout)
       obs?.disconnect()
-      if (sessionId !== activeSessionId) { governorBusy = false; return }
+      if (sessionId !== activeSessionId) return
       const st = governor.get(sessionId)
-      if (st === undefined || st.generation !== gen || st.status !== 'loading') { governorBusy = false; return }
+      if (st === undefined || st.generation !== gen || st.status !== 'settling') return
       const after = countAnchors()
       const grew = after > before
       const stillHasButton = findLoadOlderButton() !== null
       // 每批只执行一次 surgery + 测量（普通 scan 在 batch 期间被抑制），
       // 测的才是这批历史真实带来的首次处理成本。
       const scanMs = measuredScan()
-      governorBusy = false
       // 超时 / 静默后无增长且按钮仍在 = 失败或空转，避免自动重试循环
       if (isTimeout || (!grew && stillHasButton)) { pauseGovernor(st); return }
       if (scanMs >= HARD_BUDGET_MS) { pauseGovernor(st); return }
@@ -610,13 +637,42 @@ export function apply(ctx: any): void {
   }
 
   const scan = (): void => {
+    const t0 = performance.now()
     try {
       applySurgery()
       notify()
     } catch (err) {
       console.error('[dsh-tidychat] 扫描出错', err)
     }
+    lastScanMs = performance.now() - t0
+    dirty = false
   }
+
+  // ===== 可观测性（debug 模式性能报告）=====
+  const debugEnabled = (): boolean => {
+    try { return localStorage.getItem('dsh-tidychat-debug') === '1' || (window as any).__tidychatDebug === true } catch { return false }
+  }
+  const report = (): void => {
+    if (!debugEnabled()) return
+    const st = activeSessionId !== null ? governor.get(activeSessionId) : undefined
+    const turns = scopedRows('[data-chat-anchor-key]').filter((r) => r.getAttribute('data-chat-flow-kind') === 'user').length
+    // 窗口化前 rendered == total；0.1.6 窗口化后 rendered < total
+    console.log('[tidychat perf]', {
+      sessionTurns: turns,
+      scanMs: Math.round(lastScanMs),
+      navItems: turns + '/' + turns,
+      autoloadStatus: st?.status ?? 'n/a',
+      autoloadPaused: st?.status === 'paused',
+    })
+  }
+  ;(window as any).__tidychatReport = report
+  ctx.effect(() => {
+    const id = setInterval(report, 10000)
+    return () => {
+      clearInterval(id)
+      if ((window as any).__tidychatReport === report) delete (window as any).__tidychatReport
+    }
+  })
 
   // 设置读取 + 订阅（设置面板改动即时生效）
   if (settingsScope !== null) {
@@ -632,13 +688,17 @@ export function apply(ctx: any): void {
       } catch { /* keep defaults */ }
     }
     readConfig()
-    try {
-      settingsScope.subscribe(() => {
-        readConfig()
-        scan()
-        if (config.autoLoad && activeSessionId !== null) scheduleNext(activeSessionId)
-      })
-    } catch { /* ignore */ }
+    ctx.effect(() => {
+      let unsub: () => void = () => {}
+      try {
+        unsub = settingsScope.subscribe(() => {
+          readConfig()
+          scan()
+          if (config.autoLoad && activeSessionId !== null) scheduleNext(activeSessionId)
+        })
+      } catch { /* ignore */ }
+      return () => { try { unsub() } catch { /* ignore */ } }
+    })
   }
 
   scan()
@@ -654,15 +714,16 @@ export function apply(ctx: any): void {
     if (mainObserver !== null) mainObserver.disconnect()
     mainTarget = next
     mainObserver = new MutationObserver(() => {
+      dirty = true
       if (mainPending !== null) return
-      mainPending = setTimeout(() => { mainPending = null; if (!governorBusy) scan() }, 250)
+      mainPending = setTimeout(() => { mainPending = null; if (!isGovernorBusy()) scan() }, 250)
     })
     mainObserver.observe(mainTarget, { childList: true, subtree: true })
   }
 
   ctx.effect(() => {
     rebindMainObserver()
-    const intervalId = setInterval(() => { rebindMainObserver(); if (!governorBusy) scan() }, 5000)
+    const intervalId = setInterval(() => { rebindMainObserver(); if (!isGovernorBusy() && dirty) scan() }, 5000)
     return () => {
       if (mainObserver !== null) mainObserver.disconnect()
       mainObserver = null
@@ -684,7 +745,7 @@ export function apply(ctx: any): void {
     if (r.width < 10 || r.height < 10) return null
     // 会话内容居中且 max-width 748px：宽窗口时左右有留白，窄窗口时内容铺满、左侧留白归零，
     // 定位条会压到正文/输入框。测内容真实左缘与容器左缘的间距（gutter），不足定位条宽度即隐藏。
-    const content = document.querySelector('[data-composer-card]') ?? document.querySelector('[data-chat-anchor-key]')
+    const content = scopedRows('[data-composer-card]')[0] ?? scopedRows('[data-chat-anchor-key]')[0]
     const gutter = content !== null ? Math.max(0, content.getBoundingClientRect().left - r.left) : r.width
     return { left: r.left, top: r.top + r.height * 0.5, gutter }
   }
@@ -776,7 +837,7 @@ export function apply(ctx: any): void {
       }
 
       const jumpTo = (index: number): void => {
-        const domUsers = Array.from(document.querySelectorAll('[data-chat-anchor-key]')).filter((r) => r.getAttribute('data-chat-flow-kind') === 'user')
+        const domUsers = scopedRows('[data-chat-anchor-key]').filter((r) => r.getAttribute('data-chat-flow-kind') === 'user')
         const target = domUsers[index]
         if (target !== undefined) {
           target.scrollIntoView({ behavior: 'smooth', block: 'center' })

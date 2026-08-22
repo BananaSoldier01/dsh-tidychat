@@ -71,11 +71,11 @@ dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat
 >
 > **DSH ≥ 0.1.0-rc.7 不需要这条**：rc.7 起白名单机制移除，命名空间由插件动态注册，开关自动可点。
 
-> 💡 **版本兼容性**：`0.1.3` 适配 **DSH ≥ 0.1.0-rc.7**（rc.7 把 `settings.plugin.item` 槽从 list 改为 keyed，注册字段由 `id` 改为 `key`，旧版写法会报 "Failed to load plugins"）；**DSH ≤ 0.1.0-rc.6 请使用 `0.1.0`**。
+> 💡 **版本兼容性**：`0.1.5` 适配 **DSH ≥ 0.1.0-rc.7**（含 0.1.1-rc.x，已实测 rc.1/rc.2 契约点无变化）。rc.7 把 `settings.plugin.item` 槽从 list 改为 keyed，注册字段由 `id` 改为 `key`，旧版写法会报 "Failed to load plugins"；**DSH ≤ 0.1.0-rc.6 请使用 `0.1.0`**。
 
 ## 🗺️ 路线图
 
-### 0.1.5（计划）—— 稳定性收尾 + 可观测性（低风险）
+### 0.1.5（已实现，本次）—— 稳定性收尾 + 可观测性（低风险）
 
 1. **`governorBusy` 改为 active-session 派生状态** —— 修跨会话 race：A 加载中途切到 B，A 的旧 settle 回调会把全局 `governorBusy` 清掉，破坏「每批只 scan 一次」。状态枚举化（idle/loading/settling/paused/done），`isGovernorBusy()` 从当前会话 status 派生，不另设布尔。
 2. **DOM 查询系统收口到会话容器** —— `applySurgery` 主查询、`jumpTo`、`countAnchors`/`findLoadOlderButton` 全部收口到 `[data-conversation-scroll]`（带「容器未挂载回退」守卫）；按钮匹配删除泛化的「加载更多/Load more」，仅匹配会话专属的「加载更早/Load earlier/Load older」。
