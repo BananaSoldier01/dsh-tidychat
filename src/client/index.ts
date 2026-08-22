@@ -729,17 +729,21 @@ export function apply(ctx: any): void {
   })
 
   // ===== 一键报告问题：组装诊断报告 → 复制剪贴板 → 打开预填 GitHub issue =====
-  const buildReport = (tags: ReadonlyArray<string>): string => {
+  // 异常检测（报告正文「系统检测」段与标题共用）
+  const detectIssues = (): string[] => {
     const st = activeSessionId !== null ? governor.get(activeSessionId) : undefined
-    const rows = scopedRows('[data-chat-anchor-key]')
-    const turns = rows.filter((r) => r.getAttribute('data-chat-flow-kind') === 'user').length
-    const hasMore = findLoadOlderButton() !== null
-    // 系统检测：异常状态自动预填（避免用户空手提交无诊断价值的内容）
     const issues: string[] = []
     if (peakScanMs >= SOFT_BUDGET_MS) issues.push(`扫描峰值 ${Math.round(peakScanMs)}ms（≥${SOFT_BUDGET_MS}ms 预算），可能存在卡顿迹象`)
     if (st?.status === 'paused') issues.push('自动加载已暂停（性能闸门触发）')
     if (!config.autoLoad) issues.push('自动加载已关闭，历史窗口偏小')
-    if (config.autoLoad && hasMore && st?.status === 'idle') issues.push('自动加载开启但未在加载，且仍有更早历史未加载')
+    if (config.autoLoad && findLoadOlderButton() !== null && st?.status === 'idle') issues.push('自动加载开启但未在加载，且仍有更早历史未加载')
+    return issues
+  }
+  const buildReport = (tags: ReadonlyArray<string>, issues: ReadonlyArray<string>): string => {
+    const st = activeSessionId !== null ? governor.get(activeSessionId) : undefined
+    const rows = scopedRows('[data-chat-anchor-key]')
+    const turns = rows.filter((r) => r.getAttribute('data-chat-flow-kind') === 'user').length
+    const hasMore = findLoadOlderButton() !== null
     return [
       '## 问题报告（dsh-tidychat 自动生成）',
       '',
@@ -779,9 +783,12 @@ export function apply(ctx: any): void {
     ].join('\n')
   }
   const reportAndOpenIssue = (tags: ReadonlyArray<string>): void => {
-    const text = buildReport(tags)
+    const issues = detectIssues()
+    const text = buildReport(tags, issues)
+    const subject = tags.length > 0 ? tags.join('、') : (issues.length > 0 ? '检测到异常' : '问题反馈')
+    const title = `[问题报告] ${subject}（插件 v${__PLUGIN_VERSION__}）`
     try { navigator.clipboard?.writeText(text) } catch { /* 剪贴板失败时预填 URL 仍可用 */ }
-    window.open('https://github.com/BananaSoldier01/dsh-tidychat/issues/new?body=' + encodeURIComponent(text), '_blank')
+    window.open('https://github.com/BananaSoldier01/dsh-tidychat/issues/new?title=' + encodeURIComponent(title) + '&body=' + encodeURIComponent(text), '_blank')
   }
 
   // 设置读取 + 订阅（设置面板改动即时生效）
