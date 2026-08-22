@@ -305,6 +305,8 @@ export function apply(ctx: any): void {
 
   // 可观测性 / 无效扫描：扫描耗时 + dirty 标记（5 秒兜底发现无变化时跳过全量扫描）
   let lastScanMs = 0
+  let peakScanMs = 0
+  let scanCount = 0
   let dirty = false
 
   // 生命周期清理登记：一次性 timer/订阅在 ctx.effect 里统一清理；
@@ -663,6 +665,8 @@ export function apply(ctx: any): void {
       console.error('[dsh-tidychat] 扫描出错', err)
     }
     lastScanMs = performance.now() - t0
+    if (lastScanMs > peakScanMs) peakScanMs = lastScanMs
+    scanCount += 1
     dirty = false
   }
 
@@ -700,18 +704,35 @@ export function apply(ctx: any): void {
   // ===== 一键报告问题：组装诊断报告 → 复制剪贴板 → 打开预填 GitHub issue =====
   const buildReport = (): string => {
     const st = activeSessionId !== null ? governor.get(activeSessionId) : undefined
-    const turns = scopedRows('[data-chat-anchor-key]').filter((r) => r.getAttribute('data-chat-flow-kind') === 'user').length
+    const rows = scopedRows('[data-chat-anchor-key]')
+    const turns = rows.filter((r) => r.getAttribute('data-chat-flow-kind') === 'user').length
+    const hasMore = findLoadOlderButton() !== null
     return [
       '## 问题报告（dsh-tidychat 自动生成）',
       '',
+      '### 环境',
       `- 时间：${new Date().toLocaleString()}`,
       '- DSH 版本：请运行 `dsh --version` 后填写（如 0.1.1-rc.2）',
       `- 插件版本：${__PLUGIN_VERSION__}`,
       `- 浏览器：${navigator.userAgent}`,
-      `- 会话轮次：${turns}`,
+      '',
+      '### 会话规模',
+      `- 会话 ID：${activeSessionId ?? 'n/a'}`,
+      `- 已加载用户轮次：${turns}（仅当前已加载窗口）`,
+      `- 已加载消息行（含思考/工具调用）：${rows.length}`,
+      `- 更早历史：${hasMore ? '仍有未加载（autoLoad 关闭或暂停时窗口偏小）' : '已全部加载'}`,
+      '',
+      '### 性能',
       `- 最近扫描耗时：${Math.round(lastScanMs)}ms`,
-      `- 定位条：${turns}/${turns}`,
-      `- 自动加载状态：${st?.status ?? 'n/a'}`,
+      `- 峰值扫描耗时：${Math.round(peakScanMs)}ms`,
+      `- 本次页面已扫描：${scanCount} 次`,
+      '',
+      '### 自动加载',
+      `- 开关：${config.autoLoad ? '开' : '关（历史不会自动加载完整，窗口偏小）'}`,
+      `- 状态：${st?.status ?? 'n/a'}`,
+      '',
+      '### 定位条',
+      `- 已渲染/总数：${turns}/${turns}`,
       '',
       '### 开关配置',
       `- fold: ${config.fold} / divider: ${config.divider} / navigator: ${config.navigator} / autoLoad: ${config.autoLoad}`,
