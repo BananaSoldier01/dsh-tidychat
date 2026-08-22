@@ -71,26 +71,26 @@ dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat
 >
 > **DSH ≥ 0.1.0-rc.7 不需要这条**：rc.7 起白名单机制移除，命名空间由插件动态注册，开关自动可点。
 
-> 💡 **版本兼容性**：`0.1.5` 适配 **DSH ≥ 0.1.0-rc.7**（含 0.1.1-rc.x，已实测 rc.1/rc.2 契约点无变化）。rc.7 把 `settings.plugin.item` 槽从 list 改为 keyed，注册字段由 `id` 改为 `key`，旧版写法会报 "Failed to load plugins"；**DSH ≤ 0.1.0-rc.6 请使用 `0.1.0`**。
+> 💡 **版本兼容性**：`0.2.0` 适配 **DSH ≥ 0.1.0-rc.7**（含 0.1.1-rc.x，已实测 rc.1/rc.2 契约点无变化）。rc.7 把 `settings.plugin.item` 槽从 list 改为 keyed，注册字段由 `id` 改为 `key`，旧版写法会报 "Failed to load plugins"；**DSH ≤ 0.1.0-rc.6 请使用 `0.1.0`**。
 
 ## 🗺️ 路线图
 
-### 0.1.5（已实现，本次）—— 稳定性收尾 + 可观测性（低风险）
+### 0.2.0（已实现，本次）—— Adaptive Conversation Navigation Rail
 
-1. **`governorBusy` 改为 active-session 派生状态** —— 修跨会话 race：A 加载中途切到 B，A 的旧 settle 回调会把全局 `governorBusy` 清掉，破坏「每批只 scan 一次」。状态枚举化（idle/loading/settling/paused/done），`isGovernorBusy()` 从当前会话 status 派生，不另设布尔。
-2. **DOM 查询系统收口到会话容器** —— `applySurgery` 主查询、`jumpTo`、`countAnchors`/`findLoadOlderButton` 全部收口到 `[data-conversation-scroll]`（带「容器未挂载回退」守卫）；按钮匹配删除泛化的「加载更多/Load more」，仅匹配会话专属的「加载更早/Load earlier/Load older」。
-3. **async cleanup 收口** —— disposers 数组统一清理 setTimeout/requestIdleCallback/settle timer/observer/subscribe；`generation` 守卫保留作第二道防线（cleanup 拦不住已进队列的 callback）。
-4. **避免无效扫描** —— 5 秒兜底加 dirty 门（无 mutation 时跳过全量扫描）；applySurgery 期间抑制 observer，防止「scan → 改 DOM → 又触发 scan」的自激循环。
-5. **可观测性** —— debug 模式输出性能报告（`turns` / `scan ms` / `nav rendered/total` / `autoload status`），验证 ④ 的效果 + 长会话问题诊断。
+左缘定位条从「固定列表」升级为 **Canvas Minimap 全局导航**：
 
-### 0.1.6（计划）—— 性能版（单独版本，中高风险）
+1. **固定高度**：`min(70vh, 660px)`，任意 turn 数量（20/70/200+）都映射在同一可视区内
+2. **Turn 全局均匀映射**：`y = index/(total-1) × railHeight`，不随 turn 数增长 DOM（仅 1 个 canvas + 1 个提示卡）
+3. **鱼眼 hover**：hover 附近 ±4 turn 间距放大、远处自动压缩，命中测试与绘制共用同一布局函数
+4. **Drag scrubbing**：拖动时仅预览目标 turn，松手才跳转
+5. **当前 turn 高亮**：以「阅读区顶部」为准（含 header 偏移），随滚动实时更新
+6. **精确跳转**：用户消息滚到阅读区顶部（而非 viewport 中心或埋进 header）
+7. **兼容性**：fold / divider / autoload / diagnostics 均不受影响（rail 数据来自会话快照，与折叠的 CSS 隐藏无关）
 
-1. **⏳ 左缘定位条超长优化（方案未定）** —— 定位条 fixed 定位、每轮一根小条，轮次过多会超出屏幕上下被裁切。待定方案：窗口化（只渲染视野附近消息、随滚动更新）、或随会话内容滚动、或其它。方案确定前不实现。
-2. **Turn Index 层** —— conversation DOM → Turn Index（id/element/position/summary），fold/navigator/autoload 共享索引，替代每次全量扫描；基于索引的增量维护（等真实 500+/1000+ 行数据再定方案）。
+### 下一版本（候选）
 
-### 候选 / 待定
-
-- **运行中回合的已完成步骤折叠**（issue #2）—— 新功能需求：单轮内 LLM 执行大量动作时，运行中实时折叠已完成步骤。需求强度待验证，0.1.6 之后再说。
+1. **Turn Index 层** —— conversation DOM → Turn Index（id/element/position/summary），fold/navigator/autoload 共享索引，替代每次全量扫描；基于索引的增量维护（等真实 500+/1000+ 行数据再定方案）。
+2. **运行中回合的已完成步骤折叠**（issue #2）—— 单轮内 LLM 执行大量动作时，运行中实时折叠已完成步骤。需求强度待验证。
 
 ### 本地开发（link 模式）
 

@@ -75,32 +75,10 @@ const CSS = `
   align-items: flex-start;
   padding: 6px 2px;
 }
-.tidychat-nav-slot {
-  display: flex;
-  align-items: center;
-  height: 18px;
-  margin: 1px 0;
-  padding: 0 6px;
-  cursor: pointer;
-  background: transparent; /* 旧浏览器兜底：color-mix 不支持时退回无底衬 */
-  background: color-mix(in srgb, var(--dsw-alias-bg-layer-3, #fff) 74%, transparent);
-  border: none;
-  border-radius: 6px;
-}
-.tidychat-nav-slot:hover {
-  background: transparent; /* 旧浏览器兜底 */
-  background: color-mix(in srgb, var(--dsw-alias-bg-layer-3, #fff) 96%, transparent);
-}
-.tidychat-nav-bar {
+.tidychat-nav-canvas {
   display: block;
-  height: 3px;
-  border-radius: 2px;
-  background: var(--dsw-alias-label-caption, rgba(127, 127, 127, 0.5)); /* 旧浏览器兜底：保证竖条有颜色 */
-  background: color-mix(in srgb, var(--dsw-alias-label-primary, #222) 78%, transparent);
-  transition: width 120ms ease, background 120ms ease;
-}
-.tidychat-nav-bar.hot {
-  background: var(--dsw-alias-state-business-primary, #3b82f6);
+  cursor: pointer;
+  touch-action: none;
 }
 .tidychat-nav-tip {
   position: fixed;
@@ -873,14 +851,16 @@ export function apply(ctx: any): void {
     return (d.getMonth() + 1) + '月' + d.getDate() + '日 ' + pad(d.getHours()) + ':' + pad(d.getMinutes())
   }
 
-  const findScrollParent = (el: Element): HTMLElement | null => {
-    let p = el.parentElement
-    while (p !== null) {
-      if (p.scrollHeight > p.clientHeight + 4) return p
-      p = p.parentElement
-    }
-    return null
-  }
+  // ===== Adaptive Conversation Navigation Rail（v0.2.0 Canvas Minimap）=====
+  const NAV_RAIL_BAR_H = 3
+  const NAV_RAIL_BAR_LEN = 14
+  const NAV_RAIL_BAR_LEN_NEAR = 26
+  const NAV_RAIL_BAR_LEN_CURRENT = 22
+  const NAV_RAIL_FISH_EYE_RADIUS = 4
+  const NAV_RAIL_FISH_EYE_BOOST = 0.5
+  const HEADER_OFFSET = 64
+
+  const railHeight = (): number => Math.min(window.innerHeight * 0.7, 660)
 
   // 导航条（挂到会话头部 utilities 槽，fixed 定位到聊天区左缘；独立开关 navigator）
   ctx.slots.inject('conversation.session.header.utilities', () => ctx.slots.register(
@@ -890,7 +870,115 @@ export function apply(ctx: any): void {
       const [snapshot, setSnapshot] = React.useState<any>(null)
       const [tip, setTip] = React.useState<any>(null)
       const [hover, setHover] = React.useState<number | null>(null)
+      const [current, setCurrent] = React.useState<number | null>(null)
       const [enabled, setEnabled] = React.useState<boolean>(config.navigator)
+      const canvasRef = React.useRef<HTMLCanvasElement | null>(null)
+      // 行位置缓存：scroll 无关的内容坐标（相对滚动容器），供「当前 turn 检测 + 跳转」二分
+      const rowCacheRef = React.useRef<{ rows: Element[]; tops: number[]; count: number }>({ rows: [], tops: [], count: -1 })
+
+      const userRows = (): Element[] => scopedRows('[data-chat-anchor-key]').filter((r) => r.getAttribute('data-chat-flow-kind') === 'user')
+      const rebuildRowCache = (count: number): void => {
+        const rows = userRows()
+        const container = findScrollContainer()
+        if (container === null) { rowCacheRef.current = { rows: [], tops: [], count }; return }
+        const cRect = container.getBoundingClientRect()
+        const tops = rows.map((r) => r.getBoundingClientRect().top - cRect.top + container.scrollTop)
+        rowCacheRef.current = { rows, tops, count }
+      }
+      // 当前 turn = 阅读区顶部（容器顶 + header 偏移）最近的上方 user 行
+      const detectCurrent = (): void => {
+        const container = findScrollContainer()
+        const tops = rowCacheRef.current.tops
+        if (container === null || tops.length === 0) return
+        const target = container.scrollTop + HEADER_OFFSET
+        let lo = 0; let hi = tops.length - 1; let ans = -1
+        while (lo <= hi) {
+          const mid = (lo + hi) >> 1
+          if (tops[mid] <= target) { ans = mid; lo = mid + 1 } else hi = mid - 1
+        }
+        const cur = ans === -1 ? 0 : ans
+        setCurrent((p) => (p === cur ? p : cur))
+      }
+
+      // 鱼眼布局：hover 附近 ±R 间距放大，远处自动压缩（简单权重模型，无复杂数理）
+      const layoutPositions = (n: number, hoverIdx: number | null, H: number): number[] => {
+        const weights: number[] = []
+        for (let i = 0; i < n; i++) {
+          let w = 1
+          if (hoverIdx !== null) {
+            const d = Math.abs(i - hoverIdx)
+            if (d <= NAV_RAIL_FISH_EYE_RADIUS) w = 1 + (NAV_RAIL_FISH_EYE_RADIUS - d + 1) * NAV_RAIL_FISH_EYE_BOOST
+          }
+          weights.push(w)
+        }
+        const total = weights.reduce((a, b) => a + b, 0)
+        const usable = Math.max(H - NAV_RAIL_BAR_H, 1)
+        const pos: number[] = []
+        let acc = 0
+        for (let i = 0; i < n; i++) {
+          acc += weights[i]
+          pos.push(((acc - weights[i] / 2) / total) * usable + NAV_RAIL_BAR_H / 2)
+        }
+        return pos
+      }
+      // 命中测试：与绘制共用同一布局函数，所见即所得（positions 单调，二分）
+      const indexFromY = (y: number, positions: number[]): number => {
+        if (positions.length === 0) return 0
+        let lo = 0; let hi = positions.length - 1
+        while (lo < hi) {
+          const mid = (lo + hi) >> 1
+          if (positions[mid] < y) lo = mid + 1
+          else hi = mid
+        }
+        const cur = positions[lo]
+        const prev = lo > 0 ? positions[lo - 1] : -Infinity
+        const candidate = Math.abs(cur - y) <= Math.abs(prev - y) ? lo : lo - 1
+        return Math.max(0, Math.min(positions.length - 1, candidate))
+      }
+
+      const redraw = (): void => {
+        const canvas = canvasRef.current
+        if (canvas === null) return
+        const n = users.length
+        if (n === 0) return
+        const H = railHeight()
+        const W = NAV_RAIL_WIDTH - 8
+        const dpr = window.devicePixelRatio || 1
+        if (canvas.width !== Math.round(W * dpr) || canvas.height !== Math.round(H * dpr)) {
+          canvas.width = Math.round(W * dpr)
+          canvas.height = Math.round(H * dpr)
+          canvas.style.width = W + 'px'
+          canvas.style.height = H + 'px'
+        }
+        const ctx = canvas.getContext('2d')
+        if (ctx === null) return
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+        ctx.clearRect(0, 0, W, H)
+        const cs = getComputedStyle(document.documentElement)
+        const barColor = cs.getPropertyValue('--dsw-alias-label-caption').trim() || 'rgba(127,127,127,0.5)'
+        const hotColor = cs.getPropertyValue('--dsw-alias-state-business-primary').trim() || '#3b82f6'
+        const positions = layoutPositions(n, hover, H)
+        const nearest = (i: number): boolean => hover !== null && Math.abs(i - hover) <= 2
+        for (let i = 0; i < n; i++) {
+          const y = positions[i]
+          const isCurrent = current === i
+          const isHover = hover === i
+          const len = isHover ? NAV_RAIL_BAR_LEN_NEAR : (isCurrent ? NAV_RAIL_BAR_LEN_CURRENT : (nearest(i) ? NAV_RAIL_BAR_LEN + 4 : NAV_RAIL_BAR_LEN))
+          const color = isCurrent || isHover ? hotColor : barColor
+          ctx.fillStyle = color
+          ctx.fillRect(0, y - NAV_RAIL_BAR_H / 2, len, NAV_RAIL_BAR_H)
+          // 当前 turn 右侧加个小指针
+          if (isCurrent) {
+            ctx.fillStyle = hotColor
+            ctx.beginPath()
+            ctx.moveTo(len + 2, y)
+            ctx.lineTo(len + 6, y - 3)
+            ctx.lineTo(len + 6, y + 3)
+            ctx.closePath()
+            ctx.fill()
+          }
+        }
+      }
 
       React.useEffect(() => {
         const sid = props.sessionId
@@ -926,18 +1014,23 @@ export function apply(ctx: any): void {
           resizeObs.observe(container)
         }
         window.addEventListener('resize', refresh)
+        // 滚动监听：检测「阅读区顶部」的当前 turn（rAF 节流）
+        let scrollRaf = 0
+        const onScroll = (): void => {
+          if (scrollRaf !== 0) return
+          scrollRaf = requestAnimationFrame(() => { scrollRaf = 0; detectCurrent() })
+        }
+        if (container !== null) container.addEventListener('scroll', onScroll, { passive: true })
         return () => {
           try { unsub() } catch { /* ignore */ }
           const i = listeners.indexOf(refresh)
           if (i >= 0) listeners.splice(i, 1)
           resizeObs?.disconnect()
           window.removeEventListener('resize', refresh)
+          if (container !== null) container.removeEventListener('scroll', onScroll)
+          if (scrollRaf !== 0) cancelAnimationFrame(scrollRaf)
         }
       }, [props.sessionId])
-
-      if (!enabled) return null
-      // 会话内容左侧留白不足以容纳定位条时隐藏（Codex 同款「空间足够才显示」）
-      if (pos !== null && pos.gutter < NAV_RAIL_WIDTH) return null
 
       const users: Array<{ seq: number; time: number; summary: string }> = []
       if (snapshot !== null && snapshot !== undefined && Array.isArray(snapshot.nodes)) {
@@ -953,26 +1046,51 @@ export function apply(ctx: any): void {
         }
       }
 
+      // 每轮渲染后：重建行缓存（行数变化时）→ 检测当前 turn → 重绘 canvas
+      React.useEffect(() => {
+        if (rowCacheRef.current.count !== users.length) rebuildRowCache(users.length)
+        detectCurrent()
+        redraw()
+      })
+
       const jumpTo = (index: number): void => {
-        const domUsers = scopedRows('[data-chat-anchor-key]').filter((r) => r.getAttribute('data-chat-flow-kind') === 'user')
-        const target = domUsers[index]
-        if (target !== undefined) {
-          target.scrollIntoView({ behavior: 'smooth', block: 'center' })
-        } else if (domUsers.length > 0) {
-          const scroller = findScrollParent(domUsers[0])
-          if (scroller !== null) scroller.scrollTop = 0
+        const target = rowCacheRef.current.rows[index]
+        if (target === undefined) return
+        const container = findScrollContainer()
+        if (container === null) return
+        const cRect = container.getBoundingClientRect()
+        const tRect = target.getBoundingClientRect()
+        // 用户消息出现在阅读区顶部（header 之下），而非 viewport 中心或埋进 header
+        container.scrollTo({ top: (tRect.top - cRect.top) + container.scrollTop - HEADER_OFFSET, behavior: 'smooth' })
+      }
+      const handlePointerMove = (ev: React.PointerEvent<HTMLCanvasElement>): void => {
+        const canvas = canvasRef.current
+        if (canvas === null) return
+        const rect = canvas.getBoundingClientRect()
+        const idx = indexFromY(ev.clientY - rect.top, layoutPositions(users.length, hover, railHeight()))
+        if (idx !== hover) setHover(idx)
+        const u = users[idx]
+        if (u !== undefined) setTip({ x: ev.clientX + 18, y: ev.clientY - 8, num: idx + 1, time: u.time !== undefined && u.time !== null ? hhmm(u.time) : '', text: u.summary })
+      }
+      const handlePointerLeave = (): void => { setHover(null); setTip(null) }
+      const handlePointerDown = (ev: React.PointerEvent<HTMLCanvasElement>): void => {
+        try { ev.currentTarget.setPointerCapture(ev.pointerId) } catch { /* 老浏览器忽略 */ }
+      }
+      const handlePointerUp = (ev: React.PointerEvent<HTMLCanvasElement>): void => {
+        const canvas = canvasRef.current
+        if (canvas !== null) {
+          const rect = canvas.getBoundingClientRect()
+          const idx = indexFromY(ev.clientY - rect.top, layoutPositions(users.length, hover, railHeight()))
+          jumpTo(idx)
         }
+        try { ev.currentTarget.releasePointerCapture(ev.pointerId) } catch { /* 忽略 */ }
+        setHover(null)
+        setTip(null)
       }
 
-      const barWidth = (i: number): number => {
-        if (hover === null) return 16
-        const d = Math.abs(i - hover)
-        if (d === 0) return 30
-        if (d === 1) return 22
-        if (d === 2) return 18
-        return 16
-      }
-
+      if (!enabled) return null
+      // 会话内容左侧留白不足以容纳定位条时隐藏（Codex 同款「空间足够才显示」）
+      if (pos !== null && pos.gutter < NAV_RAIL_WIDTH) return null
       if (users.length === 0) return null
       const style = pos === null
         ? { left: '280px', top: '50vh' }
@@ -981,22 +1099,13 @@ export function apply(ctx: any): void {
         className: 'tidychat-nav-rail',
         style: Object.assign({ transform: 'translateY(-50%)' }, style),
         'aria-label': '用户消息定位',
-      }, users.map((u, i) => {
-        const hot = hover === i
-        return React.createElement('button', {
-          key: i,
-          className: 'tidychat-nav-slot',
-          onClick: () => jumpTo(i),
-          onMouseEnter: (ev: any) => {
-            setHover(i)
-            setTip({ x: ev.clientX + 18, y: ev.clientY - 8, num: i + 1, time: u.time !== undefined && u.time !== null ? hhmm(u.time) : '', text: u.summary })
-          },
-          onMouseMove: (ev: any) => setTip((prev: any) => prev === null ? null : Object.assign({}, prev, { x: ev.clientX + 18, y: ev.clientY - 8 })),
-          onMouseLeave: () => { setHover(null); setTip(null) },
-        }, React.createElement('span', {
-          className: 'tidychat-nav-bar' + (hot ? ' hot' : ''),
-          style: { width: barWidth(i) + 'px' },
-        }))
+      }, React.createElement('canvas', {
+        ref: canvasRef,
+        className: 'tidychat-nav-canvas',
+        onPointerMove: handlePointerMove,
+        onPointerLeave: handlePointerLeave,
+        onPointerDown: handlePointerDown,
+        onPointerUp: handlePointerUp,
       }))
       const tipEl = tip === null ? null : React.createElement('div', {
         className: 'tidychat-nav-tip',
