@@ -24,11 +24,11 @@ export interface Config {
   autoLoad?: boolean
   /** 定位条默认色色系：auto（跟随背景明暗自适应）/ gray / black / white / blue / violet / cyan / green / orange / red。 */
   navColor?: string
-  /** 定位条默认色明度档：l1（浅）/ l2（中）/ l3（深），仅 navColor ≠ auto 时生效。 */
+  /** 定位条默认色明度档：l1（极浅）/ l2（浅）/ l3（中）/ l4（深）/ l5（极深），仅 navColor ≠ auto 时生效。 */
   navColorLight?: string
   /** 定位条强调色色系：gray / black / white / blue / violet / cyan / green / orange / red。 */
   navAccent?: string
-  /** 定位条强调色明度档：l1（浅）/ l2（中）/ l3（深）。 */
+  /** 定位条强调色明度档：l1（极浅）/ l2（浅）/ l3（中）/ l4（深）/ l5（极深）。 */
   navAccentLight?: string
 }
 
@@ -38,9 +38,9 @@ export const Config: z<Config> = z.object({
   navigator: z.boolean().default(true),
   autoLoad: z.boolean().default(true),
   navColor: z.string().default('auto'),
-  navColorLight: z.string().default('l2'),
+  navColorLight: z.string().default('l3'),
   navAccent: z.string().default('blue'),
-  navAccentLight: z.string().default('l2'),
+  navAccentLight: z.string().default('l3'),
 })
 
 export const inject: string[] = []

@@ -334,9 +334,11 @@ const NAV_HUE_OPTIONS: ReadonlyArray<{ key: string; label: string; preview: stri
   { key: 'red', label: '红', preview: '#ef4444' },
 ]
 const NAV_LIGHT_OPTIONS: ReadonlyArray<{ key: string; label: string }> = [
-  { key: 'l1', label: '浅' },
-  { key: 'l2', label: '中' },
-  { key: 'l3', label: '深' },
+  { key: 'l1', label: '极浅' },
+  { key: 'l2', label: '浅' },
+  { key: 'l3', label: '中' },
+  { key: 'l4', label: '深' },
+  { key: 'l5', label: '极深' },
 ]
 
 export function apply(ctx: any): void {
@@ -395,8 +397,8 @@ export function apply(ctx: any): void {
     }
   }
 
-  // 设置：tidychat 命名空间，四个开关 + 定位条配色（默认色 auto 自适应 + 强调色 blue/l2）；读不到 settings 服务时全开。
-  const config = { fold: true, divider: true, navigator: true, autoLoad: true, navColor: 'auto', navColorLight: 'l2', navAccent: 'blue', navAccentLight: 'l2' }
+  // 设置：tidychat 命名空间，四个开关 + 定位条配色（默认色 auto 自适应 + 强调色 blue/l3）；读不到 settings 服务时全开。
+  const config = { fold: true, divider: true, navigator: true, autoLoad: true, navColor: 'auto', navColorLight: 'l3', navAccent: 'blue', navAccentLight: 'l3' }
   let settingsScope: any = null
   const settingsFace = ctx.get('webUiSettings') ?? ctx.get('settingsScope')
   if (settingsFace !== undefined && typeof settingsFace.bind === 'function') {
@@ -837,23 +839,23 @@ export function apply(ctx: any): void {
 
   // ===== 定位条配色：默认色（auto 背景自适应 / 手动色系×明度）+ 强调色（色系×明度）=====
   // canvas 绘制时从 CSS 变量取值（applyNavColors 统一写入），redraw 不重复计算。
-  // 每个色系 3 档明度 [l1 浅, l2 中, l3 深]——正交组合即 hue × light 查表。
-  const NAV_HUE_PALETTE: Record<string, [string, string, string]> = {
-    gray: ['rgba(190,190,190,0.75)', 'rgba(128,128,128,0.8)', 'rgba(60,60,60,0.85)'],
-    black: ['rgba(60,60,60,0.8)', 'rgba(25,25,25,0.88)', 'rgba(0,0,0,0.95)'],
-    white: ['rgba(255,255,255,0.92)', 'rgba(240,240,240,0.86)', 'rgba(208,208,208,0.8)'],
-    blue: ['#60a5fa', '#3b82f6', '#1d4ed8'],
-    violet: ['#a78bfa', '#8b5cf6', '#6d28d9'],
-    cyan: ['#22d3ee', '#06b6d4', '#0e7490'],
-    green: ['#4ade80', '#22c55e', '#15803d'],
-    orange: ['#fb923c', '#f97316', '#c2410c'],
-    red: ['#f87171', '#ef4444', '#b91c1c'],
+  // 每个色系 5 档明度 [l1 极浅, l2 浅, l3 中, l4 深, l5 极深]——正交组合即 hue × light 查表。
+  const NAV_HUE_PALETTE: Record<string, [string, string, string, string, string]> = {
+    gray: ['rgba(225,225,225,0.9)', 'rgba(190,190,190,0.78)', 'rgba(128,128,128,0.8)', 'rgba(70,70,70,0.85)', 'rgba(20,20,20,0.92)'],
+    black: ['rgba(90,90,90,0.8)', 'rgba(60,60,60,0.85)', 'rgba(30,30,30,0.9)', 'rgba(12,12,12,0.94)', 'rgba(0,0,0,0.97)'],
+    white: ['rgba(255,255,255,0.95)', 'rgba(250,250,250,0.9)', 'rgba(240,240,240,0.85)', 'rgba(225,225,225,0.8)', 'rgba(205,205,205,0.75)'],
+    blue: ['#93c5fd', '#60a5fa', '#3b82f6', '#2563eb', '#1e40af'],
+    violet: ['#c4b5fd', '#a78bfa', '#8b5cf6', '#7c3aed', '#5b21b6'],
+    cyan: ['#67e8f9', '#22d3ee', '#06b6d4', '#0891b2', '#155e75'],
+    green: ['#86efac', '#4ade80', '#22c55e', '#16a34a', '#166534'],
+    orange: ['#fdba74', '#fb923c', '#f97316', '#ea580c', '#9a3412'],
+    red: ['#fca5a5', '#f87171', '#ef4444', '#dc2626', '#991b1b'],
   }
-  const NAV_LIGHT_IDX: Record<string, number> = { l1: 0, l2: 1, l3: 2 }
+  const NAV_LIGHT_IDX: Record<string, number> = { l1: 0, l2: 1, l3: 2, l4: 3, l5: 4 }
   const hueColor = (hue: unknown, light: unknown, fallback: string): string => {
     if (typeof hue === 'string') {
       const palette = NAV_HUE_PALETTE[hue]
-      if (palette !== undefined) return palette[NAV_LIGHT_IDX[typeof light === 'string' ? light : 'l2'] ?? 1]
+      if (palette !== undefined) return palette[NAV_LIGHT_IDX[typeof light === 'string' ? light : 'l3'] ?? 2]
     }
     return fallback
   }
@@ -923,9 +925,9 @@ export function apply(ctx: any): void {
           config.navigator = snap.value.navigator ?? true
           config.autoLoad = snap.value.autoLoad ?? true
           config.navColor = typeof snap.value.navColor === 'string' ? snap.value.navColor : 'auto'
-          config.navColorLight = typeof snap.value.navColorLight === 'string' ? snap.value.navColorLight : 'l2'
+          config.navColorLight = typeof snap.value.navColorLight === 'string' ? snap.value.navColorLight : 'l3'
           config.navAccent = typeof snap.value.navAccent === 'string' ? snap.value.navAccent : 'blue'
-          config.navAccentLight = typeof snap.value.navAccentLight === 'string' ? snap.value.navAccentLight : 'l2'
+          config.navAccentLight = typeof snap.value.navAccentLight === 'string' ? snap.value.navAccentLight : 'l3'
         }
       } catch { /* keep defaults */ }
     }
@@ -1299,7 +1301,7 @@ export function apply(ctx: any): void {
       try { unsub = settingsScope.subscribe(pull) } catch { unsub = () => {} }
       return () => { try { unsub() } catch { /* ignore */ } }
     }, [])
-    const value = (snap !== null && snap !== undefined && snap.value) ? snap.value : { fold: true, divider: true, navigator: true, autoLoad: true, navColor: 'auto', navColorLight: 'l2', navAccent: 'blue', navAccentLight: 'l2', debug: false }
+    const value = (snap !== null && snap !== undefined && snap.value) ? snap.value : { fold: true, divider: true, navigator: true, autoLoad: true, navColor: 'auto', navColorLight: 'l3', navAccent: 'blue', navAccentLight: 'l3', debug: false }
     const writable = snap !== null && snap !== undefined ? snap.writable : false
     const fields: Array<[string, string, string]> = [
       ['fold', '自动折叠已完成轮次', '隐藏思考、工具调用与中间文字，只保留最终结论，控制条含处理时长。'],
@@ -1375,9 +1377,9 @@ export function apply(ctx: any): void {
           ),
           React.createElement('div', { className: 'tidychat-color-sub' },
             React.createElement('span', { className: 'tidychat-color-sub-label' }, '明度'),
-            chipRow(NAV_LIGHT_OPTIONS, String(value.navColorLight ?? 'l2'), (k) => setColor('navColorLight', k), !writable || (value.navColor ?? 'auto') === 'auto'),
+            chipRow(NAV_LIGHT_OPTIONS, String(value.navColorLight ?? 'l3'), (k) => setColor('navColorLight', k), !writable || (value.navColor ?? 'auto') === 'auto'),
           ),
-          React.createElement('p', { className: 'tidychat-field-hint' }, '自动 = 跟随聊天区背景明暗自动选择对比灰；手动 = 按「色系 × 明度」着色。'),
+          React.createElement('p', { className: 'tidychat-field-hint' }, '自动 = 跟随聊天区背景明暗自动选择对比灰；手动 = 按「色系 × 5 级明度（极浅→极深）」正交着色。'),
         ),
         React.createElement('div', { key: 'navAccent', className: 'tidychat-field' },
           React.createElement('div', { className: 'tidychat-field-head' },
@@ -1389,7 +1391,7 @@ export function apply(ctx: any): void {
           ),
           React.createElement('div', { className: 'tidychat-color-sub' },
             React.createElement('span', { className: 'tidychat-color-sub-label' }, '明度'),
-            chipRow(NAV_LIGHT_OPTIONS, String(value.navAccentLight ?? 'l2'), (k) => setColor('navAccentLight', k), !writable),
+            chipRow(NAV_LIGHT_OPTIONS, String(value.navAccentLight ?? 'l3'), (k) => setColor('navAccentLight', k), !writable),
           ),
           React.createElement('p', { className: 'tidychat-field-hint' }, '当前轮次与悬停 / 导航目标回合以强调色高亮；普通条幅用默认色。'),
         ),
