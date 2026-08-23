@@ -72,11 +72,11 @@ dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat
 >
 > **DSH ≥ 0.1.0-rc.7 不需要这条**：rc.7 起白名单机制移除，命名空间由插件动态注册，开关自动可点。
 
-> 💡 **版本兼容性**：`0.2.0` 适配 **DSH ≥ 0.1.0-rc.7**（含 0.1.1-rc.x，已实测 rc.1/rc.2 契约点无变化）。rc.7 把 `settings.plugin.item` 槽从 list 改为 keyed，注册字段由 `id` 改为 `key`，旧版写法会报 "Failed to load plugins"；**DSH ≤ 0.1.0-rc.6 请使用 `0.1.0`**。
+> 💡 **版本兼容性**：`0.2.0` 起适配 **DSH ≥ 0.1.0-rc.7**（含 0.1.1-rc.x，已实测 rc.1/rc.2 契约点无变化）。rc.7 把 `settings.plugin.item` 槽从 list 改为 keyed，注册字段由 `id` 改为 `key`，旧版写法会报 "Failed to load plugins"；**DSH ≤ 0.1.0-rc.6 请使用 `0.1.0`**。
 
 ## 🗺️ 路线图
 
-### 0.2.0（已实现，本次）—— Adaptive Conversation Navigation Rail
+### 0.2.0（已发布）—— Adaptive Conversation Navigation Rail
 
 左缘定位条从「固定列表」升级为 **Canvas Minimap 全局导航**：
 
@@ -87,6 +87,13 @@ dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat
 5. **当前 turn 高亮**：以「阅读区顶部」为准（含 header 偏移），随滚动实时更新
 6. **精确跳转**：用户消息滚到阅读区顶部（而非 viewport 中心或埋进 header）
 7. **兼容性**：fold / divider / autoload / diagnostics 均不受影响（rail 数据来自会话快照，与折叠的 CSS 隐藏无关）
+
+### 0.2.1（已发布，本次）—— 定位条配色完善（PR #5 合入）
+
+1. **背景真实冒泡**：默认色 auto 的背景判定从会话滚动容器沿父级向上冒泡找第一个非透明背景（alpha=0 跳过），不再只查固定候选
+2. **auto 尊重主题**：默认色 auto 优先用宿主淡色文字色，与实际背景 WCAG 对比 ≥3:1 才使用，不足自动切纠偏灰；强调色 auto（默认）= 跟随主题品牌色（`--dsw-alias-state-business-primary`）
+3. **配色折叠为高级项**：设置卡片内「配色（高级）」可折叠收起，明度档在 auto 时禁用
+4. **配置枚举化**：host schema 四个配色字段改为 `z.union` 枚举收敛取值；插件卸载时清除写入 `:root` 的临时 CSS 变量
 
 ### 下一版本（候选）
 
