@@ -22,25 +22,32 @@ export interface Config {
   navigator?: boolean
   /** 页面空闲时逐步加载更早历史；检测到性能压力时自动暂停。 */
   autoLoad?: boolean
-  /** 定位条默认色色系：auto（跟随背景明暗自适应）/ gray / black / white / blue / violet / cyan / green / orange / red。 */
+  /** 定位条默认色色系：auto（优先宿主淡色文字色，对比不足自动换纠偏灰）/ gray / black / white / blue / violet / cyan / green / orange / red。 */
   navColor?: string
   /** 定位条默认色明度档：l1（极浅）/ l2（浅）/ l3（中）/ l4（深）/ l5（极深），仅 navColor ≠ auto 时生效。 */
   navColorLight?: string
-  /** 定位条强调色色系：gray / black / white / blue / violet / cyan / green / orange / red。 */
+  /** 定位条强调色色系：auto（跟随主题品牌色）/ gray / black / white / blue / violet / cyan / green / orange / red。 */
   navAccent?: string
-  /** 定位条强调色明度档：l1（极浅）/ l2（浅）/ l3（中）/ l4（深）/ l5（极深）。 */
+  /** 定位条强调色明度档：l1（极浅）/ l2（浅）/ l3（中）/ l4（深）/ l5（极深），仅 navAccent ≠ auto 时生效。 */
   navAccentLight?: string
 }
+
+/** 定位条默认色色系枚举。 */
+export const NAV_HUE_KEYS = ['auto', 'gray', 'black', 'white', 'blue', 'violet', 'cyan', 'green', 'orange', 'red'] as const
+/** 定位条强调色色系枚举。 */
+export const NAV_ACCENT_KEYS = ['auto', 'gray', 'black', 'white', 'blue', 'violet', 'cyan', 'green', 'orange', 'red'] as const
+/** 定位条明度档枚举。 */
+export const NAV_LIGHT_KEYS = ['l1', 'l2', 'l3', 'l4', 'l5'] as const
 
 export const Config: z<Config> = z.object({
   fold: z.boolean().default(true),
   divider: z.boolean().default(true),
   navigator: z.boolean().default(true),
   autoLoad: z.boolean().default(true),
-  navColor: z.string().default('auto'),
-  navColorLight: z.string().default('l3'),
-  navAccent: z.string().default('blue'),
-  navAccentLight: z.string().default('l3'),
+  navColor: z.union(NAV_HUE_KEYS).default('auto'),
+  navColorLight: z.union(NAV_LIGHT_KEYS).default('l3'),
+  navAccent: z.union(NAV_ACCENT_KEYS).default('auto'),
+  navAccentLight: z.union(NAV_LIGHT_KEYS).default('l3'),
 })
 
 export const inject: string[] = []
