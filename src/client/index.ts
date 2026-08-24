@@ -37,7 +37,7 @@ const CSS = `
 }
 .tidychat-ctl-label {
   font-size: 11px;
-  color: var(--dsw-alias-label-tertiary, #999);
+  color: var(--dsw-alias-label-secondary, #666);
   white-space: nowrap;
   flex: none;
 }
@@ -50,7 +50,7 @@ const CSS = `
   cursor: pointer;
   border: 1px solid var(--dsw-alias-border-l2, rgba(128,128,128,0.4));
   background: transparent;
-  color: var(--dsw-alias-label-secondary, #666);
+  color: var(--dsw-alias-label-primary, #222);
   border-radius: 6px;
   padding: 1px 8px;
   flex: none;
@@ -92,10 +92,10 @@ const CSS = `
   padding: 6px 10px;
   font-size: 12px;
   line-height: 1.5;
-  color: var(--dsw-alias-label-primary, #222);
+  color: var(--tidychat-nav-tip-text, var(--dsw-alias-label-primary, #222));
 }
 .tidychat-nav-tip-head {
-  color: var(--dsw-alias-label-tertiary, #999);
+  color: var(--tidychat-nav-tip-head, var(--dsw-alias-label-secondary, #666));
   font-size: 11px;
   margin-bottom: 2px;
 }
@@ -957,12 +957,31 @@ export function apply(ctx: any): void {
     const hot = (config.navAccent ?? 'auto') === 'auto' ? brand : hueColor(config.navAccent, config.navAccentLight, brand)
     return { bar, hot }
   }
-  // 写入供 canvas 读取的 CSS 变量（值相同不重复写，避免触发主题观察器死循环）
+  // 悬停提示卡文字色：优先用宿主 label-primary/secondary token，仅当与提示卡背景
+  // （bg-layer-3）对比不足时才纠偏 —— 与定位条 auto 同一模式，不新增主题检测机制。
+  const resolveTipColors = (): { text: string; head: string } => {
+    const cs = getComputedStyle(document.documentElement)
+    const primary = cs.getPropertyValue('--dsw-alias-label-primary').trim() || '#222'
+    const secondary = cs.getPropertyValue('--dsw-alias-label-secondary').trim() || '#666'
+    const bgRgb = parseRgb(cs.getPropertyValue('--dsw-alias-bg-layer-3').trim())
+    if (bgRgb === null) return { text: primary, head: secondary }
+    const darkBg = 0.2126 * bgRgb[0] + 0.7152 * bgRgb[1] + 0.0722 * bgRgb[2] < 128
+    const fix = (candidate: string): string => {
+      const rgb = parseRgb(candidate)
+      if (rgb !== null && contrastRatio(rgb, bgRgb) >= 3) return candidate
+      return darkBg ? 'rgba(235,235,235,0.92)' : 'rgba(55,55,55,0.92)'
+    }
+    return { text: fix(primary), head: fix(secondary) }
+  }
+  // 写入供 canvas / 提示卡读取的 CSS 变量（值相同不重复写，避免触发主题观察器死循环）
   const applyNavColors = (): void => {
     const { bar, hot } = resolveNavColors()
+    const { text, head } = resolveTipColors()
     const root = document.documentElement
     if (root.style.getPropertyValue('--tidychat-nav-color') !== bar) root.style.setProperty('--tidychat-nav-color', bar)
     if (root.style.getPropertyValue('--tidychat-nav-color-hot') !== hot) root.style.setProperty('--tidychat-nav-color-hot', hot)
+    if (root.style.getPropertyValue('--tidychat-nav-tip-text') !== text) root.style.setProperty('--tidychat-nav-tip-text', text)
+    if (root.style.getPropertyValue('--tidychat-nav-tip-head') !== head) root.style.setProperty('--tidychat-nav-tip-head', head)
   }
 
   // 设置读取 + 订阅（设置面板改动即时生效）
@@ -1030,6 +1049,8 @@ export function apply(ctx: any): void {
       // 卸载时清掉写入 :root 的临时 CSS 变量，避免残留污染宿主主题
       document.documentElement.style.removeProperty('--tidychat-nav-color')
       document.documentElement.style.removeProperty('--tidychat-nav-color-hot')
+      document.documentElement.style.removeProperty('--tidychat-nav-tip-text')
+      document.documentElement.style.removeProperty('--tidychat-nav-tip-head')
     }
   })
 
