@@ -887,29 +887,73 @@ export function apply(ctx: any): void {
     }
     return fallback
   }
-  const parseRgb = (s: string): [number, number, number] | null => {
-    const m = /rgba?\((\d+)[,\s]+(\d+)[,\s]+(\d+)(?:[,\s]+([\d.]+))?\)/.exec(s)
-    if (m !== null) {
-      const alpha = m[4] !== undefined ? Number(m[4]) : 1
-      if (alpha === 0) return null // 全透明视为无背景，向祖先冒泡
-      return [Number(m[1]), Number(m[2]), Number(m[3])]
+  // 解析颜色，返回 [r, g, b, a]；兼容历史 rgba/rgb 逗号语法、空格 + `/` 语法、#rgb/#rgba/#rrggbb/#rrggbbaa、transparent
+  const parseRgba = (s: string): [number, number, number, number] | null => {
+    const t = (s ?? '').trim().toLowerCase()
+    if (t === '') return null
+    if (t === 'transparent') return [0, 0, 0, 0]
+    const hex = /^#([0-9a-f]{3,8})$/.exec(t)
+    if (hex !== null) {
+      let h = hex[1]
+      if (h.length === 3 || h.length === 4) h = h.split('').map((c) => c + c).join('')
+      if (h.length === 6) h += 'ff'
+      const n = parseInt(h, 16)
+      return [(n >> 24) & 255, (n >> 16) & 255, (n >> 8) & 255, Math.round(((n & 255) / 255) * 1000) / 1000]
     }
-    const h = /^#([0-9a-f]{6})$/i.exec(s.trim())
-    if (h !== null) {
-      const n = parseInt(h[1], 16)
-      return [(n >> 16) & 255, (n >> 8) & 255, n & 255]
+    const num = (x: string, base: number): number | null => {
+      const v = x.trim()
+      if (v === '') return null
+      const p = v.endsWith('%') ? Number(v.slice(0, -1)) : Number(v)
+      if (Number.isNaN(p)) return null
+      if (base === 255 && v.endsWith('%')) return Math.round((p / 100) * 255)
+      if (base === 1 && v.endsWith('%')) return p / 100
+      return base === 1 ? p : Math.round(p)
+    }
+    const comma = /^rgba?\(\s*([\d.]+%?)\s*,\s*([\d.]+%?)\s*,\s*([\d.]+%?)(?:\s*,\s*([\d.]+%?))?\s*\)$/.exec(t)
+    if (comma !== null) {
+      const r = num(comma[1], 255); const g = num(comma[2], 255); const b = num(comma[3], 255)
+      const a = comma[4] !== undefined ? num(comma[4], 1) : 1
+      if (r === null || g === null || b === null || a === null) return null
+      return [r, g, b, a]
+    }
+    const space = /^rgba?\(\s*([\d.]+%?)\s+([\d.]+%?)\s+([\d.]+%?)(?:\s*\/\s*([\d.]+%?))?\s*\)$/.exec(t)
+    if (space !== null) {
+      const r = num(space[1], 255); const g = num(space[2], 255); const b = num(space[3], 255)
+      const a = space[4] !== undefined ? num(space[4], 1) : 1
+      if (r === null || g === null || b === null || a === null) return null
+      return [r, g, b, a]
     }
     return null
   }
-  // 向上冒泡找第一个有效非透明背景（alpha=0 跳过），按感知亮度判定
+  const parseRgb = (s: string): [number, number, number] | null => {
+    const a = parseRgba(s)
+    return a === null ? null : [a[0], a[1], a[2]]
+  }
+  // 半透明上层与不透明下层做 over 合成（a 为上层 alpha；a≤0 返回下层，a≥1 返回上层）
+  const compositeOver = (r: number, g: number, b: number, a: number, under: [number, number, number]): [number, number, number] => {
+    if (a <= 0) return under
+    if (a >= 1) return [r, g, b]
+    return [Math.round(r * a + under[0] * (1 - a)), Math.round(g * a + under[1] * (1 - a)), Math.round(b * a + under[2] * (1 - a))]
+  }
+  // 向上冒泡合成背景：alpha=0 跳过，半透明层与祖先逐层 over 合成，至不透明为止；无有效背景返回 null
   const findBackgroundRgb = (): [number, number, number] | null => {
     try {
       let el: Element | null = findScrollContainer()
+      let cr = 0, cg = 0, cb = 0, ca = 0
       while (el !== null) {
-        const rgb = parseRgb(getComputedStyle(el).backgroundColor)
-        if (rgb !== null) return rgb
+        const rgba = parseRgba(getComputedStyle(el).backgroundColor)
+        if (rgba !== null && rgba[3] > 0) {
+          const aOut = ca + rgba[3] * (1 - ca)
+          cr = ca > 0 ? Math.round((cr * ca + rgba[0] * rgba[3] * (1 - ca)) / aOut) : rgba[0]
+          cg = ca > 0 ? Math.round((cg * ca + rgba[1] * rgba[3] * (1 - ca)) / aOut) : rgba[1]
+          cb = ca > 0 ? Math.round((cb * ca + rgba[2] * rgba[3] * (1 - ca)) / aOut) : rgba[2]
+          if (aOut >= 0.995) return [cr, cg, cb]
+          ca = aOut
+        }
         el = el.parentElement
       }
+      // 到达 html 仍未收敛：只有合成结果足够实才认为有效，否则交给兜底
+      return ca > 0.2 ? [cr, cg, cb] : null
     } catch { /* 忽略，走兜底 */ }
     return null
   }
@@ -959,16 +1003,23 @@ export function apply(ctx: any): void {
   }
   // 悬停提示卡文字色：优先用宿主 label-primary/secondary token，仅当与提示卡背景
   // （bg-layer-3）对比不足时才纠偏 —— 与定位条 auto 同一模式，不新增主题检测机制。
+  // 半透明玻璃浮层（官方深色模式的 bg-layer-3 常为 rgba(255,255,255,0.1) 类）必须与
+  // 提示卡下方的实际背景合成后再判断，否则会把深色玻璃误判成浅底、纠偏出深色文字。
   const resolveTipColors = (): { text: string; head: string } => {
     const cs = getComputedStyle(document.documentElement)
     const primary = cs.getPropertyValue('--dsw-alias-label-primary').trim() || '#222'
     const secondary = cs.getPropertyValue('--dsw-alias-label-secondary').trim() || '#666'
-    const bgRgb = parseRgb(cs.getPropertyValue('--dsw-alias-bg-layer-3').trim())
-    if (bgRgb === null) return { text: primary, head: secondary }
-    const darkBg = 0.2126 * bgRgb[0] + 0.7152 * bgRgb[1] + 0.0722 * bgRgb[2] < 128
+    const tipBg = parseRgba(cs.getPropertyValue('--dsw-alias-bg-layer-3').trim())
+    if (tipBg === null) return { text: primary, head: secondary }
+    let bg: [number, number, number] = [tipBg[0], tipBg[1], tipBg[2]]
+    if (tipBg[3] < 0.9) {
+      const under = findBackgroundRgb()
+      if (under !== null) bg = compositeOver(tipBg[0], tipBg[1], tipBg[2], tipBg[3], under)
+    }
+    const darkBg = 0.2126 * bg[0] + 0.7152 * bg[1] + 0.0722 * bg[2] < 128
     const fix = (candidate: string): string => {
       const rgb = parseRgb(candidate)
-      if (rgb !== null && contrastRatio(rgb, bgRgb) >= 3) return candidate
+      if (rgb !== null && contrastRatio(rgb, bg) >= 3) return candidate
       return darkBg ? 'rgba(235,235,235,0.92)' : 'rgba(55,55,55,0.92)'
     }
     return { text: fix(primary), head: fix(secondary) }
