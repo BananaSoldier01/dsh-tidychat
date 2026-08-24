@@ -88,12 +88,19 @@ dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat
 6. **精确跳转**：用户消息滚到阅读区顶部（而非 viewport 中心或埋进 header）
 7. **兼容性**：fold / divider / autoload / diagnostics 均不受影响（rail 数据来自会话快照，与折叠的 CSS 隐藏无关）
 
-### 0.2.1（已发布，本次）—— 定位条配色完善（PR #5 合入）
+### 0.2.1（已发布）—— 定位条配色完善（PR #5 合入）
 
 1. **背景真实冒泡**：默认色 auto 的背景判定从会话滚动容器沿父级向上冒泡找第一个非透明背景（alpha=0 跳过），不再只查固定候选
 2. **auto 尊重主题**：默认色 auto 优先用宿主淡色文字色，与实际背景 WCAG 对比 ≥3:1 才使用，不足自动切纠偏灰；强调色 auto（默认）= 跟随主题品牌色（`--dsw-alias-state-business-primary`）
 3. **配色折叠为高级项**：设置卡片内「配色（高级）」可折叠收起，明度档在 auto 时禁用
 4. **配置枚举化**：host schema 四个配色字段改为 `z.union` 枚举收敛取值；插件卸载时清除写入 `:root` 的临时 CSS 变量
+
+### 0.2.2（已发布，本次）—— 提示卡可读性（issue #6）
+
+1. **头部提级**：提示卡 `#序号 · 时间` 由最弱一级（`label-tertiary`）提升到 `label-secondary`，亮色主题下不再发虚；正文跟随 `label-primary`（与对话正文同色），明暗随主题自动切换
+2. **保守对比度兜底**：仅当提示卡浮层背景「不透明」（`bg-layer-3` alpha ≥ 0.85）且 label token 与背景对比 <3:1 时才写纠偏色（亮底深字 / 暗底亮字）；玻璃/半透明浮层（官方深色等）一律跳过、跟随主题 token——避免误判深色玻璃
+3. **长摘要折行**：`overflow-wrap: anywhere`，含长代码/URL 的摘要在卡片内折行不溢出
+4. **解析增强**：颜色解析支持 `rgba` 逗号/空格+斜杠语法、`#rgb/#rgba/#rrggbb/#rrggbbaa`、`transparent`
 
 ### 下一版本（候选）
 
