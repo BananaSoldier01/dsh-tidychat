@@ -92,11 +92,11 @@ const CSS = `
   padding: 6px 10px;
   font-size: 12px;
   line-height: 1.5;
-  color: var(--dsw-alias-label-primary, #222);
+  color: var(--tidychat-nav-tip-text, var(--dsw-alias-label-primary, #222));
   overflow-wrap: anywhere; /* 摘要含长代码/长串时在框内折行，不撑破卡片 */
 }
 .tidychat-nav-tip-head {
-  color: var(--dsw-alias-label-secondary, #666);
+  color: var(--tidychat-nav-tip-head, var(--dsw-alias-label-secondary, #666));
   font-size: 11px;
   margin-bottom: 2px;
 }
@@ -986,15 +986,31 @@ export function apply(ctx: any): void {
     const hot = (config.navAccent ?? 'auto') === 'auto' ? brand : hueColor(config.navAccent, config.navAccentLight, brand)
     return { bar, hot }
   }
-  // 提示卡文字不做对比度兜底：直接跟随主题 token（body=label-primary 与正文同色，
-  // head=label-secondary），与 v0.2.1 行为一致、随主题自动明暗；
-  // 仅定位条保留对比度兜底（canvas 颜色在玻璃/半透明背景下需要）。
+  // 保守兜底（仅提示卡）：只有当浮层背景「不透明」（alpha ≥ 0.85）且 label token 与背景
+  // 对比 <3:1 时才写入纠偏色；玻璃/半透明浮层、无法解析的背景一律清空变量、跟随 token。
+  // 这样官方深色（半透明白玻璃）与样式主题保持 token 跟随，仅异常的不透明皮肤被纠正。
+  const applyTipContrast = (): void => {
+    const root = document.documentElement
+    const cs = getComputedStyle(document.documentElement)
+    const tipBg = parseRgba(cs.getPropertyValue('--dsw-alias-bg-layer-3').trim())
+    const update = (key: string, token: string): void => {
+      if (tipBg === null || tipBg[3] < 0.85) { root.style.removeProperty(key); return }
+      const rgb = parseRgb(token)
+      const darkBg = 0.2126 * tipBg[0] + 0.7152 * tipBg[1] + 0.0722 * tipBg[2] < 128
+      const corrected = darkBg ? 'rgba(235,235,235,0.92)' : 'rgba(55,55,55,0.92)'
+      if (rgb === null || contrastRatio(rgb, [tipBg[0], tipBg[1], tipBg[2]]) >= 3) { root.style.removeProperty(key); return }
+      if (root.style.getPropertyValue(key) !== corrected) root.style.setProperty(key, corrected)
+    }
+    update('--tidychat-nav-tip-text', cs.getPropertyValue('--dsw-alias-label-primary').trim() || '#222')
+    update('--tidychat-nav-tip-head', cs.getPropertyValue('--dsw-alias-label-secondary').trim() || '#666')
+  }
   // 写入供 canvas 读取的 CSS 变量（值相同不重复写，避免触发主题观察器死循环）
   const applyNavColors = (): void => {
     const { bar, hot } = resolveNavColors()
     const root = document.documentElement
     if (root.style.getPropertyValue('--tidychat-nav-color') !== bar) root.style.setProperty('--tidychat-nav-color', bar)
     if (root.style.getPropertyValue('--tidychat-nav-color-hot') !== hot) root.style.setProperty('--tidychat-nav-color-hot', hot)
+    applyTipContrast()
   }
 
   // 设置读取 + 订阅（设置面板改动即时生效）
@@ -1062,6 +1078,8 @@ export function apply(ctx: any): void {
       // 卸载时清掉写入 :root 的临时 CSS 变量，避免残留污染宿主主题
       document.documentElement.style.removeProperty('--tidychat-nav-color')
       document.documentElement.style.removeProperty('--tidychat-nav-color-hot')
+      document.documentElement.style.removeProperty('--tidychat-nav-tip-text')
+      document.documentElement.style.removeProperty('--tidychat-nav-tip-head')
     }
   })
 
