@@ -44,8 +44,11 @@
 前置：已安装 DSH（Web 版），`pnpm` 在 PATH 上。
 
 ```sh
-# 从 GitHub 安装（推荐钉版本，可复现）
-dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat.git#v0.1.3
+# 方式 1（推荐）：npm 包，预构建产物免 allowBuilds 授权
+dsh plugin --profile web add @bananasoldier01/dsh-tidychat
+
+# 方式 2：从 GitHub 安装（推荐钉版本，可复现）
+dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat.git#v0.2.3
 ```
 
 安装后重启 dsh web + 硬刷新（Cmd+Shift+R）。
@@ -55,11 +58,11 @@ dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat
 插件以 profile 依赖的形式安装，更新就是让 pnpm 重新拉取该依赖的新版本（只拉这个插件，不会重下整个 DSH）：
 
 ```sh
-# 方式 A：装的是 main 分支（不带 #tag），直接更新到最新
+# 方式 A：npm 方式安装，直接更新
 dsh plugin --profile web update @bananasoldier01/dsh-tidychat
 
 # 方式 B：装的是某个 tag，改钉到新 tag 重新 add
-dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat.git#v0.1.3
+dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat.git#v0.2.3
 ```
 
 更新后同样重启 dsh web + 硬刷新。
