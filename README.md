@@ -1,5 +1,7 @@
 # dsh-tidychat
 
+> 🌐 [English](./README.en.md)
+
 让 DSH 的长会话变成**可扫读、可跳转**的结论流。
 
 多任务、多轮次的会话里，思考、工具调用、中间文字和最终总结混在一起，回头找「上次那个任务的结论」很费劲。dsh-tidychat 把已完成的任务轮次自动折叠成一条结论，把思考与正文用分隔线切开，并在聊天区左缘提供一条 Codex 式全局导航定位条（Canvas minimap），任意长度的会话都能全局浏览、快速跳转。
@@ -98,12 +100,18 @@ dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat
 3. **配色折叠为高级项**：设置卡片内「配色（高级）」可折叠收起，明度档在 auto 时禁用
 4. **配置枚举化**：host schema 四个配色字段改为 `z.union` 枚举收敛取值；插件卸载时清除写入 `:root` 的临时 CSS 变量
 
-### 0.2.2（已发布，本次）—— 提示卡可读性（issue #6）
+### 0.2.2（已发布）—— 提示卡可读性（issue #6）
 
 1. **头部提级**：提示卡 `#序号 · 时间` 由最弱一级（`label-tertiary`）提升到 `label-secondary`，亮色主题下不再发虚；正文跟随 `label-primary`（与对话正文同色），明暗随主题自动切换
 2. **保守对比度兜底**：仅当提示卡浮层背景「不透明」（`bg-layer-3` alpha ≥ 0.85）且 label token 与背景对比 <3:1 时才写纠偏色（亮底深字 / 暗底亮字）；玻璃/半透明浮层（官方深色等）一律跳过、跟随主题 token——避免误判深色玻璃
 3. **长摘要折行**：`overflow-wrap: anywhere`，含长代码/URL 的摘要在卡片内折行不溢出
 4. **解析增强**：颜色解析支持 `rgba` 逗号/空格+斜杠语法、`#rgb/#rgba/#rrggbb/#rrggbbaa`、`transparent`
+
+### 0.2.3（已发布，本次）—— npm 发布准备（awesome-dsh-plugin 投稿推荐项）
+
+1. **peerDependencies 化**：`@deepseek-ai/dsh-settings` 由 `dependencies` 移入 `peerDependencies`（官方运行时包由宿主 profile 提供，避免重复运行时）
+2. **npm 发布**：`prepublishOnly` 自动构建，`@bananasoldier01/dsh-tidychat@0.2.3` 已公开发布（预构建产物，安装免 `allowBuilds` 授权）；推荐安装方式改为 `dsh plugin add @bananasoldier01/dsh-tidychat`
+3. **投稿**：awesome-dsh-plugin 收录 PR 已提交（#3067，session 分类 + 截图条目），待维护者合并
 
 ### 下一版本（候选）
 
