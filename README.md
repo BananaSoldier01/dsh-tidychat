@@ -113,6 +113,10 @@ dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat
 2. **npm 发布**：`prepublishOnly` 自动构建，`@bananasoldier01/dsh-tidychat@0.2.3` 已公开发布（预构建产物，安装免 `allowBuilds` 授权）；推荐安装方式改为 `dsh plugin add @bananasoldier01/dsh-tidychat`
 3. **投稿**：awesome-dsh-plugin 收录 PR 已提交（#3067，session 分类 + 截图条目），待维护者合并
 
+### 0.2.4（已发布，本次）—— npm 包元数据刷新
+
+功能零改动，仅 npm 包内容更新：`README.en.md` 纳入包内、`repository.url` 规范化（`npm pkg fix`）、双语 README 随包发布。awesome-dsh-plugin 收录 PR #3067 已合并（session 分类 + 截图条目）。
+
 ### 下一版本（候选）
 
 1. **Turn Index 层** —— conversation DOM → Turn Index（id/element/position/summary），fold/navigator/autoload 共享索引，替代每次全量扫描；基于索引的增量维护（等真实 500+/1000+ 行数据再定方案）。

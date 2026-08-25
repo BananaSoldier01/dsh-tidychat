@@ -1,7 +1,7 @@
 {
   "name": "@bananasoldier01/dsh-tidychat",
   "description": "DSH Web 会话时间线整理：已完成轮次自动折叠（只留最终结论）+ 过程/结论分隔线 + Codex 式左缘定位条，四个功能独立开关。",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "type": "module",
   "main": "lib/index.js",
   "exports": {
