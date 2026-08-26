@@ -375,7 +375,7 @@ export function apply(ctx: any): void {
 
   const listeners: Array<() => void> = []
   const notify = () => { for (const fn of listeners) fn() }
-  const foldState = new Map<number, boolean>()
+  const foldState = new Map<string, Map<number, boolean>>()
 
   // ===== Smart AutoLoad Governor（内部性能预算为时间，非行数/次数，跨机器自洽）=====
   const SOFT_BUDGET_MS = 30
@@ -397,6 +397,18 @@ export function apply(ctx: any): void {
   }
   const governor = new Map<string, AutoLoadState>()
   let activeSessionId: string | null = null
+  // 折叠状态按会话隔离（同一轮次数在不同会话互不继承），避免跨会话串扰
+  const foldScope = (): string => activeSessionId ?? '_global'
+  const foldGet = (turn: number): boolean => foldState.get(foldScope())?.get(turn) ?? true
+  const foldSet = (turn: number, folded: boolean): void => {
+    const scope = foldScope()
+    let inner = foldState.get(scope)
+    if (inner === undefined) {
+      inner = new Map<number, boolean>()
+      foldState.set(scope, inner)
+    }
+    inner.set(turn, folded)
+  }
 
   // batch 是否进行中：从「当前活跃会话」的 status 派生（旧会话的异步回调永远无法影响新会话）
   const isGovernorBusy = (): boolean => {
@@ -558,12 +570,12 @@ export function apply(ctx: any): void {
           ctl.appendChild(line)
           ctl.appendChild(btn)
           btn.addEventListener('click', () => {
-            const cur = foldState.get(turn.turn) ?? true
+            const cur = foldGet(turn.turn)
             applyFold(turn, processRows, finalThink, ctl, !cur)
           })
           firstRow.parentElement!.insertBefore(ctl, firstRow)
         }
-        const folded = foldState.get(turn.turn) ?? true
+        const folded = foldGet(turn.turn)
         applyFold(turn, processRows, finalThink, ctl, folded)
         if (folded) foldedCount += 1
       }
@@ -582,7 +594,7 @@ export function apply(ctx: any): void {
   }
 
   const applyFold = (turn: any, processRows: Element[], finalThink: Element | null, ctl: HTMLElement | null, folded: boolean): void => {
-    foldState.set(turn.turn, folded)
+    foldSet(turn.turn, folded)
     for (const row of processRows) {
       if (folded) row.setAttribute('data-tidychat-folded', '1')
       else row.removeAttribute('data-tidychat-folded')
@@ -804,6 +816,19 @@ export function apply(ctx: any): void {
   })
 
   // ===== 一键报告问题：组装诊断报告 → 复制剪贴板 → 打开预填 GitHub issue =====
+  // 会话快照中的用户轮次统计（与 DOM 轮次对照，用于诊断「快照/DOM 不同步」）
+  const snapshotUserTurns = (): number => {
+    if (activeSessionId === null) return -1
+    try {
+      const binding = ctx.sessions.binding(activeSessionId)
+      if (binding === undefined || binding.session === undefined) return -1
+      const snap = binding.session.getSnapshot()
+      if (snap === null || snap === undefined || !Array.isArray(snap.nodes)) return -1
+      let n = 0
+      for (const node of snap.nodes) if (node !== null && node !== undefined && node.kind === 'user') n += 1
+      return n
+    } catch { return -1 }
+  }
   // 异常检测（报告正文「系统检测」段与标题共用）
   const detectIssues = (): string[] => {
     const st = activeSessionId !== null ? governor.get(activeSessionId) : undefined
@@ -812,12 +837,16 @@ export function apply(ctx: any): void {
     if (st?.status === 'paused') issues.push('自动加载已暂停（性能闸门触发）')
     if (!config.autoLoad) issues.push('自动加载已关闭，历史窗口偏小')
     if (config.autoLoad && findLoadOlderButton() !== null && st?.status === 'idle') issues.push('自动加载开启但未在加载，且仍有更早历史未加载')
+    const snapTurns = snapshotUserTurns()
+    const domTurns = scopedRows('[data-chat-anchor-key]').filter((r) => r.getAttribute('data-chat-flow-kind') === 'user').length
+    if (snapTurns >= 0 && snapTurns !== domTurns) issues.push(`会话快照 ${snapTurns} 轮 / DOM ${domTurns} 轮不一致（可能加载中或 DOM 更新滞后）`)
     return issues
   }
   const buildReport = (tags: ReadonlyArray<string>, issues: ReadonlyArray<string>): string => {
     const st = activeSessionId !== null ? governor.get(activeSessionId) : undefined
     const rows = scopedRows('[data-chat-anchor-key]')
     const turns = rows.filter((r) => r.getAttribute('data-chat-flow-kind') === 'user').length
+    const snapTurns = snapshotUserTurns()
     const hasMore = findLoadOlderButton() !== null
     return [
       '## 问题报告（dsh-tidychat 自动生成）',
@@ -844,7 +873,7 @@ export function apply(ctx: any): void {
       `- 状态：${st?.status ?? 'n/a'}`,
       '',
       '### 定位条',
-      `- 已渲染/总数：${turns}/${turns}`,
+      `- 已渲染/快照轮次：${turns}/${snapTurns >= 0 ? snapTurns : 'n/a'}${snapTurns >= 0 && snapTurns !== turns ? ' ⚠️ 不一致（快照与 DOM 轮次数量不同，可能是加载中或 DOM 更新滞后）' : ''}`,
       '',
       '### 开关配置',
       `- fold: ${config.fold} / divider: ${config.divider} / navigator: ${config.navigator} / autoLoad: ${config.autoLoad}`,
@@ -1143,6 +1172,9 @@ export function apply(ctx: any): void {
       const [current, setCurrent] = React.useState<number | null>(null)
       const [enabled, setEnabled] = React.useState<boolean>(config.navigator)
       const canvasRef = React.useRef<HTMLCanvasElement | null>(null)
+      // pointermove 节流：高频事件只记录最新坐标，rAF 帧内统一处理一次（避免每事件一次 React 渲染）
+      const moveRafRef = React.useRef(0)
+      const moveLastRef = React.useRef<{ x: number; y: number } | null>(null)
       // 行位置缓存：scroll 无关的内容坐标（相对滚动容器），供「当前 turn 检测 + 跳转」二分。
       // scrollH 记录缓存构建时的容器内容高度——折叠/加载会改变布局（行数可能不变但位置变），用它判定重算。
       const rowCacheRef = React.useRef<{ rows: Element[]; tops: number[]; count: number; scrollH: number }>({ rows: [], tops: [], count: -1, scrollH: -1 })
@@ -1301,6 +1333,7 @@ export function apply(ctx: any): void {
           window.removeEventListener('resize', refresh)
           if (container !== null) container.removeEventListener('scroll', onScroll)
           if (scrollRaf !== 0) cancelAnimationFrame(scrollRaf)
+          if (moveRafRef.current !== 0) cancelAnimationFrame(moveRafRef.current)
         }
       }, [props.sessionId])
 
@@ -1340,15 +1373,26 @@ export function apply(ctx: any): void {
         container.scrollTo({ top: (tRect.top - cRect.top) + container.scrollTop - HEADER_OFFSET, behavior: 'smooth' })
       }
       const handlePointerMove = (ev: React.PointerEvent<HTMLCanvasElement>): void => {
-        const canvas = canvasRef.current
-        if (canvas === null) return
-        const rect = canvas.getBoundingClientRect()
-        const idx = indexFromY(ev.clientY - rect.top, layoutPositions(users.length, hover, railHeight(users.length)))
-        if (idx !== hover) setHover(idx)
-        const u = users[idx]
-        if (u !== undefined) setTip({ x: ev.clientX + 18, y: ev.clientY - 8, num: idx + 1, time: u.time !== undefined && u.time !== null ? hhmm(u.time) : '', text: u.summary })
+        moveLastRef.current = { x: ev.clientX, y: ev.clientY }
+        if (moveRafRef.current !== 0) return
+        moveRafRef.current = requestAnimationFrame(() => {
+          moveRafRef.current = 0
+          const p = moveLastRef.current
+          moveLastRef.current = null
+          if (p === null || canvasRef.current === null) return
+          const canvas = canvasRef.current
+          const rect = canvas.getBoundingClientRect()
+          const idx = indexFromY(p.y - rect.top, layoutPositions(users.length, hover, railHeight(users.length)))
+          if (idx !== hover) setHover(idx)
+          const u = users[idx]
+          if (u !== undefined) setTip({ x: p.x + 18, y: p.y - 8, num: idx + 1, time: u.time !== undefined && u.time !== null ? hhmm(u.time) : '', text: u.summary })
+        })
       }
-      const handlePointerLeave = (): void => { setHover(null); setTip(null) }
+      const handlePointerLeave = (): void => {
+        if (moveRafRef.current !== 0) { cancelAnimationFrame(moveRafRef.current); moveRafRef.current = 0 }
+        moveLastRef.current = null
+        setHover(null); setTip(null)
+      }
       const handlePointerDown = (ev: React.PointerEvent<HTMLCanvasElement>): void => {
         try { ev.currentTarget.setPointerCapture(ev.pointerId) } catch { /* 老浏览器忽略 */ }
       }
@@ -1365,12 +1409,12 @@ export function apply(ctx: any): void {
       }
 
       if (!enabled) return null
+      // 宿主布局未就绪（拿不到会话左缘）时不渲染，避免出现在写死的 280px 猜测位
+      if (pos === null) return null
       // 会话内容左侧留白不足以容纳定位条时隐藏（Codex 同款「空间足够才显示」）
-      if (pos !== null && pos.gutter < NAV_RAIL_WIDTH) return null
+      if (pos.gutter < NAV_RAIL_WIDTH) return null
       if (users.length === 0) return null
-      const style = pos === null
-        ? { left: '280px', top: '50vh' }
-        : { left: pos.left + 'px', top: pos.top + 'px' }
+      const style = { left: pos.left + 'px', top: pos.top + 'px' }
       const rail = React.createElement('div', {
         className: 'tidychat-nav-rail',
         style: Object.assign({ transform: 'translateY(-50%)' }, style),

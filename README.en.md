@@ -50,7 +50,7 @@ Prerequisite: DSH (Web) installed, `pnpm` on PATH.
 dsh plugin --profile web add @bananasoldier01/dsh-tidychat
 
 # Option 2: from GitHub (pin a tag for reproducibility)
-dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat.git#v0.2.3
+dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat.git#v0.2.4
 ```
 
 Restart dsh web + hard refresh (Cmd+Shift+R) after installing.
@@ -64,7 +64,7 @@ The plugin is installed as a profile dependency; updating just re-pulls that dep
 dsh plugin --profile web update @bananasoldier01/dsh-tidychat
 
 # Option B: pinned to a tag — re-add pinned to the new tag
-dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat.git#v0.2.3
+dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat.git#v0.2.4
 ```
 
 Restart dsh web + hard refresh after updating.
