@@ -50,7 +50,7 @@ Prerequisite: DSH (Web) installed, `pnpm` on PATH.
 dsh plugin --profile web add @bananasoldier01/dsh-tidychat
 
 # Option 2: from GitHub (pin a tag for reproducibility)
-dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat.git#v0.2.4
+dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat.git#v0.2.5
 ```
 
 Restart dsh web + hard refresh (Cmd+Shift+R) after installing.
@@ -64,7 +64,7 @@ The plugin is installed as a profile dependency; updating just re-pulls that dep
 dsh plugin --profile web update @bananasoldier01/dsh-tidychat
 
 # Option B: pinned to a tag — re-add pinned to the new tag
-dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat.git#v0.2.4
+dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat.git#v0.2.5
 ```
 
 Restart dsh web + hard refresh after updating.
@@ -113,9 +113,17 @@ The rail upgraded from a fixed list to a **Canvas-minimap global navigator**:
 2. **npm publish**: `prepublishOnly` auto-builds; `@bananasoldier01/dsh-tidychat@0.2.3` is public (prebuilt — install skips `allowBuilds`); recommended install is now `dsh plugin add @bananasoldier01/dsh-tidychat`
 3. **Listing**: awesome-dsh-plugin submission PR submitted (#3067, session category + screenshots), awaiting maintainer merge
 
-### 0.2.4 (released, current) — npm package metadata refresh
+### 0.2.4 (released) — npm package metadata refresh
 
 No functional changes — npm package content only: `README.en.md` bundled, `repository.url` normalized (`npm pkg fix`), bilingual README shipped. The awesome-dsh-plugin listing PR #3067 has merged (session category + screenshots).
+
+### 0.2.5 (released, current) — Hardening
+
+1. **Fold-state session isolation (P0)**: `foldState` now `Map<sessionId, Map<turn, boolean>>` — fixes cross-session bleed (expanding turn 5 in session A no longer leaves session B's turn 5 unexpectedly expanded)
+2. **Pointermove throttling**: high-frequency moves record the latest coordinates and process once per frame via rAF (no more React render per event); pending frames cancelled on leave/unmount
+3. **No render before measurement**: when host layout is not ready (`pos === null`), the rail no longer renders at the hardcoded 280px guess position — it appears once measurement succeeds
+4. **Snapshot/DOM turn-consistency check**: the report now compares session-snapshot turns with DOM turns and flags mismatches (loading or DOM lag)
+5. Version pins updated; package description now lists all four features
 
 ### Next (candidates)
 

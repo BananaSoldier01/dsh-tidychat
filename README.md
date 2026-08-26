@@ -50,7 +50,7 @@
 dsh plugin --profile web add @bananasoldier01/dsh-tidychat
 
 # 方式 2：从 GitHub 安装（推荐钉版本，可复现）
-dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat.git#v0.2.4
+dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat.git#v0.2.5
 ```
 
 安装后重启 dsh web + 硬刷新（Cmd+Shift+R）。
@@ -64,7 +64,7 @@ dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat
 dsh plugin --profile web update @bananasoldier01/dsh-tidychat
 
 # 方式 B：装的是某个 tag，改钉到新 tag 重新 add
-dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat.git#v0.2.4
+dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat.git#v0.2.5
 ```
 
 更新后同样重启 dsh web + 硬刷新。
@@ -113,9 +113,17 @@ dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat
 2. **npm 发布**：`prepublishOnly` 自动构建，`@bananasoldier01/dsh-tidychat@0.2.3` 已公开发布（预构建产物，安装免 `allowBuilds` 授权）；推荐安装方式改为 `dsh plugin add @bananasoldier01/dsh-tidychat`
 3. **投稿**：awesome-dsh-plugin 收录 PR 已提交（#3067，session 分类 + 截图条目），待维护者合并
 
-### 0.2.4（已发布，本次）—— npm 包元数据刷新
+### 0.2.4（已发布）—— npm 包元数据刷新
 
 功能零改动，仅 npm 包内容更新：`README.en.md` 纳入包内、`repository.url` 规范化（`npm pkg fix`）、双语 README 随包发布。awesome-dsh-plugin 收录 PR #3067 已合并（session 分类 + 截图条目）。
+
+### 0.2.5（已发布，本次）—— Hardening（工程收口）
+
+1. **折叠状态会话隔离（P0）**：`foldState` 改为 `Map<sessionId, Map<turn, boolean>>`，修复跨会话同轮次串扰（会话 A 展开第 5 轮 → 会话 B 第 5 轮不再错误继承展开态）
+2. **定位条 pointermove 节流**：高频移动只记录最新坐标，rAF 帧内统一处理一次（不再每事件一次 React 渲染）；离开/卸载时清理挂起帧
+3. **测量前不渲染**：宿主布局未就绪（`pos === null`）时不再渲染到写死的 280px 猜测位，测量成功后再出现
+4. **快照/DOM 轮次一致性诊断**：报告新增「会话快照轮次 vs DOM 轮次」对照，不一致时报 ⚠️（加载中或 DOM 更新滞后）
+5. 文档钉版示例随版本更新；package description 补齐「智能加载更早历史」
 
 ### 下一版本（候选）
 
