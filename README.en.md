@@ -2,6 +2,13 @@
 
 > [中文](./README.md)
 
+> **▼ DSH v0.1.2-alpha.1 compatibility note**
+> - **Supported range unchanged**: the plugin targets DSH ≥ 0.1.0-rc.7 ~ 0.1.1-rc.x.
+> - **alpha.1 can't be installed directly yet**: only a source tag exists; npm is not published.
+> - **Feature overlap**: alpha.1 natively folds process content + System prompt before completed answers (on by default). This overlaps with the plugin's fold — running both double-folds.
+> - **Recommendation**: on alpha.1 pick one (native fold, or disable the plugin's fold). No change needed on 0.1.1-rc.x.
+> - **Coming**: the plugin's fold is not yet adapted to alpha.1; a version is planned after live verification.
+
 Turn long DSH conversations into a **scannable, skippable** stream of conclusions.
 
 In multi-task sessions, thoughts, tool calls, intermediate text and final summaries pile up, making it hard to find "the conclusion of that last task". dsh-tidychat automatically folds completed turns into a single conclusion line, separates thinking from prose with a divider, and provides a Codex-style navigation rail (Canvas minimap) on the left edge of the conversation — so any session, short or huge, can be browsed globally and jumped around quickly.
