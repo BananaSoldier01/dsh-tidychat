@@ -1291,30 +1291,28 @@ export function apply(ctx: any): void {
           const isHover = hover === i
           const color = isCurrent || isHover ? hotColor : barColor
           ctx.fillStyle = color
-          let headX: number
           if (dot) {
-            // 圆点半径适中：常态 2.5px，鱼眼邻域 3.2px，当前/悬停 4px
+            // 圆点半径适中：常态 2.5px，鱼眼邻域 3.2px，当前/悬停 4px；不画强调三角
             const rad = isCurrent || isHover ? 4 : (nearest(i) ? 3.2 : 2.5)
             const cx = mirror ? W - NAV_RAIL_BAR_LEN / 2 : NAV_RAIL_BAR_LEN / 2
             ctx.beginPath()
             ctx.arc(cx, y, rad, 0, Math.PI * 2)
             ctx.fill()
-            headX = cx + dir * (rad + 2)
           } else {
             const len = isHover ? NAV_RAIL_BAR_LEN_NEAR : (isCurrent ? NAV_RAIL_BAR_LEN_CURRENT : (nearest(i) ? NAV_RAIL_BAR_LEN + 4 : NAV_RAIL_BAR_LEN))
             ctx.fillRect(mirror ? W - len : 0, y - NAV_RAIL_BAR_H / 2, len, NAV_RAIL_BAR_H)
-            headX = mirror ? W - len - 2 : len + 2
+            // 当前 turn 的强调指针（仅竖条模式）：左缘时在条右侧指右，右缘镜像后在条左侧指左
+            if (isCurrent) {
+              const headX = mirror ? W - len - 2 : len + 2
+              ctx.beginPath()
+              ctx.moveTo(headX, y)
+              ctx.lineTo(headX + dir * 4, y - 3)
+              ctx.lineTo(headX + dir * 4, y + 3)
+              ctx.closePath()
+              ctx.fill()
+            }
           }
-          // 当前 turn 的强调指针（贴边内侧）：左缘时在条右侧指右，右缘镜像后在条左侧指左
-          if (isCurrent) {
-            ctx.beginPath()
-            ctx.moveTo(headX, y)
-            ctx.lineTo(headX + dir * 4, y - 3)
-            ctx.lineTo(headX + dir * 4, y + 3)
-            ctx.closePath()
-            ctx.fill()
-          }
-        }
+      }
       }
 
       React.useEffect(() => {
@@ -1419,7 +1417,8 @@ export function apply(ctx: any): void {
           if (idx !== hover) setHover(idx)
           const u = users[idx]
           if (u !== undefined) {
-            // 右缘镜像：摘要卡从鼠标左侧弹出（渲染时 translateX(-100%)），避免贴边溢出
+            // 右缘镜像：tip.x 记鼠标左侧 18px，渲染改用 right 定位（left+translateX(-100%)
+            // 会把收缩适配宽度压到「视口宽-left」≈40px，泡泡被挤成一条竖条）
             const mirror = (config.navSide ?? 'left') === 'right'
             setTip({ x: mirror ? p.x - 18 : p.x + 18, y: p.y - 8, num: idx + 1, time: u.time !== undefined && u.time !== null ? hhmm(u.time) : '', text: u.summary, mirror })
           }
@@ -1466,10 +1465,9 @@ export function apply(ctx: any): void {
       }))
       const tipEl = tip === null ? null : React.createElement('div', {
         className: 'tidychat-nav-tip',
-        style: Object.assign(
-          { left: tip.x + 'px', top: tip.y + 'px' },
-          tip.mirror ? { transform: 'translateX(-100%)' } : {},
-        ),
+        style: tip.mirror
+          ? { right: Math.max(0, window.innerWidth - tip.x) + 'px', top: tip.y + 'px' }
+          : { left: tip.x + 'px', top: tip.y + 'px' },
       },
         React.createElement('div', { className: 'tidychat-nav-tip-head' }, '#' + tip.num + (tip.time !== '' ? ' · ' + tip.time : '')),
         React.createElement('div', null, tip.text),
@@ -1568,7 +1566,7 @@ export function apply(ctx: any): void {
             React.createElement('span', { className: 'tidychat-field-label' }, '显示样式'),
           ),
           chipRow(NAV_STYLE_OPTIONS, String(value.navStyle ?? 'bar'), (k) => setColor('navStyle', k), !writable),
-          React.createElement('p', { className: 'tidychat-field-hint' }, '位置 = 消息轨贴会话区左缘或右缘，右缘时强调三角与摘要卡镜像到左侧；样式 = 竖条或圆点，圆点模式同样保留悬停鱼眼放大与点击跳转。'),
+          React.createElement('p', { className: 'tidychat-field-hint' }, '位置 = 消息轨贴会话区左缘或右缘，右缘时整体镜像（竖条模式的强调三角指左、摘要卡从左侧弹出）；样式 = 竖条或圆点，圆点模式同样保留悬停鱼眼放大与点击跳转。'),
         ),
         React.createElement('div', { key: 'navColors', className: 'tidychat-field' },
           React.createElement('button', {
