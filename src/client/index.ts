@@ -80,7 +80,11 @@ const CSS = `
   cursor: pointer;
   touch-action: none;
 }
-.tidychat-nav-tip {
+/* 双类名 + !important：泡泡挂载在顶栏 header 内，部分样式主题（如 maid-atelier 换肤）会写
+   「header 内所有 nav/span/button/a/div」这类大范围 color:inherit 规则，优先级约 (0,3,2)，
+   单类名声明 (0,1,0) 必败，导致文字继承主题顶栏的浅色、落在浅色泡泡上不可读。
+   变量链保留：皮肤仍可通过 --tidychat-nav-tip-text / --tidychat-nav-tip-head 定制。 */
+.tidychat-nav-tip.tidychat-nav-tip {
   position: fixed;
   z-index: 41;
   pointer-events: none;
@@ -92,11 +96,11 @@ const CSS = `
   padding: 6px 10px;
   font-size: 12px;
   line-height: 1.5;
-  color: var(--tidychat-nav-tip-text, var(--dsw-alias-label-primary, #222));
+  color: var(--tidychat-nav-tip-text, var(--dsw-alias-label-primary, #222)) !important;
   overflow-wrap: anywhere; /* 摘要含长代码/长串时在框内折行，不撑破卡片 */
 }
 .tidychat-nav-tip-head {
-  color: var(--tidychat-nav-tip-head, var(--dsw-alias-label-secondary, #666));
+  color: var(--tidychat-nav-tip-head, var(--dsw-alias-label-secondary, #666)) !important;
   font-size: 11px;
   margin-bottom: 2px;
 }
@@ -1020,7 +1024,9 @@ export function apply(ctx: any): void {
   // 这样官方深色（半透明白玻璃）与样式主题保持 token 跟随，仅异常的不透明皮肤被纠正。
   const applyTipContrast = (): void => {
     const root = document.documentElement
-    const cs = getComputedStyle(document.documentElement)
+    // 主题 token 定义在 body 作用域（body / body[data-ds-dark-theme]），
+    // 从 html 读 computed 值永远是空串，会拿 '#222' 兜底值代替真实 token 测对比度。
+    const cs = getComputedStyle(document.body)
     const tipBg = parseRgba(cs.getPropertyValue('--dsw-alias-bg-layer-3').trim())
     const update = (key: string, token: string): void => {
       if (tipBg === null || tipBg[3] < 0.85) { root.style.removeProperty(key); return }
