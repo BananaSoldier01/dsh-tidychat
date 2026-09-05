@@ -30,6 +30,10 @@ export interface Config {
   navAccent?: string
   /** 定位条强调色明度档：l1（极浅）/ l2（浅）/ l3（中）/ l4（深）/ l5（极深），仅 navAccent ≠ auto 时生效。 */
   navAccentLight?: string
+  /** 定位条贴边：left（左缘，默认）/ right（右缘镜像，强调三角与摘要卡随边镜像）。 */
+  navSide?: string
+  /** 定位条样式：bar（竖条，默认）/ dot（圆点，保留鱼眼放大交互）。 */
+  navStyle?: string
 }
 
 /** 定位条默认色色系枚举。 */
@@ -38,6 +42,10 @@ export const NAV_HUE_KEYS = ['auto', 'gray', 'black', 'white', 'blue', 'violet',
 export const NAV_ACCENT_KEYS = ['auto', 'gray', 'black', 'white', 'blue', 'violet', 'cyan', 'green', 'orange', 'red'] as const
 /** 定位条明度档枚举。 */
 export const NAV_LIGHT_KEYS = ['l1', 'l2', 'l3', 'l4', 'l5'] as const
+/** 定位条贴边枚举。 */
+export const NAV_SIDE_KEYS = ['left', 'right'] as const
+/** 定位条样式枚举。 */
+export const NAV_STYLE_KEYS = ['bar', 'dot'] as const
 
 export const Config: z<Config> = z.object({
   fold: z.boolean().default(true),
@@ -48,6 +56,8 @@ export const Config: z<Config> = z.object({
   navColorLight: z.union(NAV_LIGHT_KEYS).default('l3'),
   navAccent: z.union(NAV_ACCENT_KEYS).default('auto'),
   navAccentLight: z.union(NAV_LIGHT_KEYS).default('l3'),
+  navSide: z.union(NAV_SIDE_KEYS).default('left'),
+  navStyle: z.union(NAV_STYLE_KEYS).default('bar'),
 })
 
 export const inject: string[] = []
