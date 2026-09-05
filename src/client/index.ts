@@ -369,6 +369,14 @@ const NAV_LIGHT_OPTIONS: ReadonlyArray<{ key: string; label: string }> = [
   { key: 'l4', label: '深' },
   { key: 'l5', label: '极深' },
 ]
+const NAV_SIDE_OPTIONS: ReadonlyArray<{ key: string; label: string }> = [
+  { key: 'left', label: '左缘' },
+  { key: 'right', label: '右缘（镜像）' },
+]
+const NAV_STYLE_OPTIONS: ReadonlyArray<{ key: string; label: string }> = [
+  { key: 'bar', label: '竖条' },
+  { key: 'dot', label: '圆点' },
+]
 
 export function apply(ctx: any): void {
   ctx.effect(() => injectStyle(CSS))
@@ -439,7 +447,7 @@ export function apply(ctx: any): void {
   }
 
   // 设置：tidychat 命名空间，四个开关 + 定位条配色（默认色 auto 尊重主题 + 强调色 auto 跟随主题品牌色）；读不到 settings 服务时全开。
-  const config = { fold: true, divider: true, navigator: true, autoLoad: true, navColor: 'auto', navColorLight: 'l3', navAccent: 'auto', navAccentLight: 'l3' }
+  const config = { fold: true, divider: true, navigator: true, autoLoad: true, navColor: 'auto', navColorLight: 'l3', navAccent: 'auto', navAccentLight: 'l3', navSide: 'left', navStyle: 'bar' }
   let settingsScope: any = null
   const settingsFace = ctx.get('webUiSettings') ?? ctx.get('settingsScope')
   if (settingsFace !== undefined && typeof settingsFace.bind === 'function') {
@@ -1056,6 +1064,8 @@ export function apply(ctx: any): void {
           config.navColorLight = typeof snap.value.navColorLight === 'string' ? snap.value.navColorLight : 'l3'
           config.navAccent = typeof snap.value.navAccent === 'string' ? snap.value.navAccent : 'auto'
           config.navAccentLight = typeof snap.value.navAccentLight === 'string' ? snap.value.navAccentLight : 'l3'
+          config.navSide = snap.value.navSide === 'right' ? 'right' : 'left'
+          config.navStyle = snap.value.navStyle === 'dot' ? 'dot' : 'bar'
         }
       } catch { /* keep defaults */ }
     }
@@ -1068,6 +1078,8 @@ export function apply(ctx: any): void {
           readConfig()
           applyNavColors()
           scan()
+          // 配置里影响定位条布局/样式的项（navSide/navStyle/配色）变化时立即重排重绘
+          notify()
           if (config.autoLoad && activeSessionId !== null) scheduleNext(activeSessionId)
         })
       } catch { /* ignore */ }
@@ -1134,10 +1146,16 @@ export function apply(ctx: any): void {
     if (host === null) return null
     const r = host.getBoundingClientRect()
     if (r.width < 10 || r.height < 10) return null
-    // 会话内容居中且 max-width 748px：宽窗口时左右有留白，窄窗口时内容铺满、左侧留白归零，
-    // 定位条会压到正文/输入框。测内容真实左缘与容器左缘的间距（gutter），不足定位条宽度即隐藏。
+    // 会话内容居中且 max-width 748px：宽窗口时左右有留白，窄窗口时内容铺满、留白归零，
+    // 定位条会压到正文/输入框。测内容真实边缘与容器边缘的间距（gutter），不足定位条宽度即隐藏。
+    // navSide = right 时镜像贴右缘：left 取容器右缘内收一个轨宽，gutter 测右缘留白。
     const content = scopedRows('[data-composer-card]')[0] ?? scopedRows('[data-chat-anchor-key]')[0]
-    const gutter = content !== null ? Math.max(0, content.getBoundingClientRect().left - r.left) : r.width
+    const cRect = content !== null ? content.getBoundingClientRect() : null
+    if ((config.navSide ?? 'left') === 'right') {
+      const gutter = cRect !== null ? Math.max(0, r.right - cRect.right) : r.width
+      return { left: r.right - (NAV_RAIL_WIDTH - 4), top: r.top + r.height * 0.5, gutter }
+    }
+    const gutter = cRect !== null ? Math.max(0, cRect.left - r.left) : r.width
     return { left: r.left, top: r.top + r.height * 0.5, gutter }
   }
 
@@ -1261,23 +1279,38 @@ export function apply(ctx: any): void {
         // 配色优先读 applyNavColors 写入的变量，未写入（旧版兜底）再回退到主题 token
         const barColor = cs.getPropertyValue('--tidychat-nav-color').trim() || cs.getPropertyValue('--dsw-alias-label-caption').trim() || 'rgba(127,127,127,0.5)'
         const hotColor = cs.getPropertyValue('--tidychat-nav-color-hot').trim() || cs.getPropertyValue('--dsw-alias-state-business-primary').trim() || '#3b82f6'
+        // 右缘镜像：竖条从画布右缘向左生长，强调三角指左；圆点模式：小圆点 + 鱼眼放大
+        const mirror = (config.navSide ?? 'left') === 'right'
+        const dot = (config.navStyle ?? 'bar') === 'dot'
+        const dir = mirror ? -1 : 1
         const positions = layoutPositions(n, hover, H)
         const nearest = (i: number): boolean => hover !== null && Math.abs(i - hover) <= 2
         for (let i = 0; i < n; i++) {
           const y = positions[i]
           const isCurrent = current === i
           const isHover = hover === i
-          const len = isHover ? NAV_RAIL_BAR_LEN_NEAR : (isCurrent ? NAV_RAIL_BAR_LEN_CURRENT : (nearest(i) ? NAV_RAIL_BAR_LEN + 4 : NAV_RAIL_BAR_LEN))
           const color = isCurrent || isHover ? hotColor : barColor
           ctx.fillStyle = color
-          ctx.fillRect(0, y - NAV_RAIL_BAR_H / 2, len, NAV_RAIL_BAR_H)
-          // 当前 turn 右侧加个小指针
-          if (isCurrent) {
-            ctx.fillStyle = hotColor
+          let headX: number
+          if (dot) {
+            // 圆点半径适中：常态 2.5px，鱼眼邻域 3.2px，当前/悬停 4px
+            const rad = isCurrent || isHover ? 4 : (nearest(i) ? 3.2 : 2.5)
+            const cx = mirror ? W - NAV_RAIL_BAR_LEN / 2 : NAV_RAIL_BAR_LEN / 2
             ctx.beginPath()
-            ctx.moveTo(len + 2, y)
-            ctx.lineTo(len + 6, y - 3)
-            ctx.lineTo(len + 6, y + 3)
+            ctx.arc(cx, y, rad, 0, Math.PI * 2)
+            ctx.fill()
+            headX = cx + dir * (rad + 2)
+          } else {
+            const len = isHover ? NAV_RAIL_BAR_LEN_NEAR : (isCurrent ? NAV_RAIL_BAR_LEN_CURRENT : (nearest(i) ? NAV_RAIL_BAR_LEN + 4 : NAV_RAIL_BAR_LEN))
+            ctx.fillRect(mirror ? W - len : 0, y - NAV_RAIL_BAR_H / 2, len, NAV_RAIL_BAR_H)
+            headX = mirror ? W - len - 2 : len + 2
+          }
+          // 当前 turn 的强调指针（贴边内侧）：左缘时在条右侧指右，右缘镜像后在条左侧指左
+          if (isCurrent) {
+            ctx.beginPath()
+            ctx.moveTo(headX, y)
+            ctx.lineTo(headX + dir * 4, y - 3)
+            ctx.lineTo(headX + dir * 4, y + 3)
             ctx.closePath()
             ctx.fill()
           }
@@ -1385,7 +1418,11 @@ export function apply(ctx: any): void {
           const idx = indexFromY(p.y - rect.top, layoutPositions(users.length, hover, railHeight(users.length)))
           if (idx !== hover) setHover(idx)
           const u = users[idx]
-          if (u !== undefined) setTip({ x: p.x + 18, y: p.y - 8, num: idx + 1, time: u.time !== undefined && u.time !== null ? hhmm(u.time) : '', text: u.summary })
+          if (u !== undefined) {
+            // 右缘镜像：摘要卡从鼠标左侧弹出（渲染时 translateX(-100%)），避免贴边溢出
+            const mirror = (config.navSide ?? 'left') === 'right'
+            setTip({ x: mirror ? p.x - 18 : p.x + 18, y: p.y - 8, num: idx + 1, time: u.time !== undefined && u.time !== null ? hhmm(u.time) : '', text: u.summary, mirror })
+          }
         })
       }
       const handlePointerLeave = (): void => {
@@ -1429,7 +1466,10 @@ export function apply(ctx: any): void {
       }))
       const tipEl = tip === null ? null : React.createElement('div', {
         className: 'tidychat-nav-tip',
-        style: { left: tip.x + 'px', top: tip.y + 'px' },
+        style: Object.assign(
+          { left: tip.x + 'px', top: tip.y + 'px' },
+          tip.mirror ? { transform: 'translateX(-100%)' } : {},
+        ),
       },
         React.createElement('div', { className: 'tidychat-nav-tip-head' }, '#' + tip.num + (tip.time !== '' ? ' · ' + tip.time : '')),
         React.createElement('div', null, tip.text),
@@ -1452,12 +1492,12 @@ export function apply(ctx: any): void {
       try { unsub = settingsScope.subscribe(pull) } catch { unsub = () => {} }
       return () => { try { unsub() } catch { /* ignore */ } }
     }, [])
-    const value = (snap !== null && snap !== undefined && snap.value) ? snap.value : { fold: true, divider: true, navigator: true, autoLoad: true, navColor: 'auto', navColorLight: 'l3', navAccent: 'auto', navAccentLight: 'l3', debug: false }
+    const value = (snap !== null && snap !== undefined && snap.value) ? snap.value : { fold: true, divider: true, navigator: true, autoLoad: true, navColor: 'auto', navColorLight: 'l3', navAccent: 'auto', navAccentLight: 'l3', navSide: 'left', navStyle: 'bar', debug: false }
     const writable = snap !== null && snap !== undefined ? snap.writable : false
     const fields: Array<[string, string, string]> = [
       ['fold', '自动折叠已完成轮次', '隐藏思考、工具调用与中间文字，只保留最终结论，控制条含处理时长。'],
       ['divider', '思考↔文字分隔线', '在思考行与正文文字之间插入实线，区分过程与结论。'],
-      ['navigator', '左缘定位条', '聊天区左缘的细窄条状导航，悬停显示摘要、点击跳转到对应消息。'],
+      ['navigator', '消息轨定位条', '会话区边缘的细窄导航，悬停显示摘要、点击跳转到对应消息；贴边与样式可在下方调整。'],
       ['autoLoad', '智能加载更早历史', '在页面空闲时逐步加载更早记录；检测到页面响应下降时自动暂停，以保持长会话流畅。需要时仍可手动继续加载。'],
     ]
     const toggle = (field: string): void => {
@@ -1519,6 +1559,17 @@ export function apply(ctx: any): void {
           ),
           React.createElement('p', { className: 'tidychat-field-hint' }, hint),
         )),
+        React.createElement('div', { key: 'navLayout', className: 'tidychat-field' },
+          React.createElement('div', { className: 'tidychat-field-head' },
+            React.createElement('span', { className: 'tidychat-field-label' }, '显示位置'),
+          ),
+          chipRow(NAV_SIDE_OPTIONS, String(value.navSide ?? 'left'), (k) => setColor('navSide', k), !writable),
+          React.createElement('div', { className: 'tidychat-field-head', style: { marginTop: '8px' } },
+            React.createElement('span', { className: 'tidychat-field-label' }, '显示样式'),
+          ),
+          chipRow(NAV_STYLE_OPTIONS, String(value.navStyle ?? 'bar'), (k) => setColor('navStyle', k), !writable),
+          React.createElement('p', { className: 'tidychat-field-hint' }, '位置 = 消息轨贴会话区左缘或右缘，右缘时强调三角与摘要卡镜像到左侧；样式 = 竖条或圆点，圆点模式同样保留悬停鱼眼放大与点击跳转。'),
+        ),
         React.createElement('div', { key: 'navColors', className: 'tidychat-field' },
           React.createElement('button', {
             type: 'button',
