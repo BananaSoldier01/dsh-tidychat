@@ -571,6 +571,10 @@ export function apply(ctx: any): void {
           g.tail = row
         } else if (kind === 'tool-call') {
           g.whole.push(row)
+        } else if (kind === 'model-retry') {
+          // DSH 把被重试的模型请求渲染为 data-chat-flow-kind="model-retry"（“已重试模型请求”状态行）。
+          // 它属于过程噪音、无正式答复需要保留，随思考/工具调用一起折叠（issue #8）。
+          g.whole.push(row)
         } else if (kind === 'assistant-step') {
           const think = row.querySelector('[data-variant="think"]')
           if (think !== null) {
