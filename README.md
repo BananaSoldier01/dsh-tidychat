@@ -2,16 +2,15 @@
 
 > 🌐 [English](./README.en.md)
 
-> **▼ DSH v0.1.2-alpha.1 适配说明**
-> - **支持范围不变**：插件适配 DSH ≥ 0.1.0-rc.7 ~ 0.1.1-rc.x。
-> - **alpha.1 暂不可直接升级**：目前只有源码 tag，npm 未发布。
-> - **功能重叠**：alpha.1 原生新增「折叠已完成回答前的过程 + System prompt」且默认开，与插件的 fold 功能重叠，同时开会双折叠。
-> - **建议**：在 alpha.1 上二选一（用原生折叠，或关掉插件 fold）；0.1.1-rc.x 无需改动。
-> - **适配中**：插件的折叠版尚未适配 alpha.1，待实机验证后发布。
+> **▼ DSH v0.1.2-rc.1 适配说明**
+> - **支持范围**：插件适配 DSH ≥ 0.1.0-rc.7 ~ 0.1.1-rc.x，并已实测适配 **DSH 0.1.2-rc.1**。
+> - **功能重叠**：0.1.2 起官方原生新增「折叠已完成回答前的过程 + System prompt」以及右侧 TurnNavigator，与插件的 fold / 左缘定位条重叠。
+> - **建议**：若用官方原生折叠就关掉插件 fold，二者选其一（避免双折叠）。
+> - **左缘定位条暂缓**：从 0.2.6 起，左缘定位条因与官方新功能冲突、且存在 react-dom 依赖问题，**暂不显示**；是否保留或如何优化，待后续版本再决定。
 
 让 DSH 的长会话变成**可扫读、可跳转**的结论流。
 
-多任务、多轮次的会话里，思考、工具调用、中间文字和最终总结混在一起，回头找「上次那个任务的结论」很费劲。dsh-tidychat 把已完成的任务轮次自动折叠成一条结论，把思考与正文用分隔线切开，并在聊天区左缘提供一条 Codex 式全局导航定位条（Canvas minimap），任意长度的会话都能全局浏览、快速跳转。
+多任务、多轮次的会话里，思考、工具调用、中间文字和最终总结混在一起，回头找「上次那个任务的结论」很费劲。dsh-tidychat 把已完成的任务轮次自动折叠成一条结论，把思考与正文用分隔线切开；原本聊天区左缘的 Codex 式全局导航定位条（Canvas minimap）因与官方新功能冲突、且存在 react-dom 问题，**0.2.6 起暂不显示**，是否保留或优化待后续版本决定。
 
 > 🔌 生态：挂 `#dsh` · `#dsh-plugin` topic，欢迎收录。
 
@@ -21,11 +20,11 @@
 | --- | --- |
 | 🗂 自动折叠 | 已完成轮次自动收起思考（Think）、工具调用与中间文字，只保留最终总结；控制条含「过程 N 步」和处理时长（用时 / 首 token / 速率） |
 | ➖ 分隔线 | 思考行与正文之间的实线，一眼区分「过程」与「结论」 |
-| 📍 左缘定位条（Adaptive Navigation Rail） | 固定高度 Canvas minimap：任意轮次（几十到几千）全局映射到同一可视区；鱼眼悬停放大、拖动预览、点击跳转到阅读区顶部；当前轮次高亮跟随滚动；默认色可背景自适应或手动选「色系 × 明度」，强调色（当前/悬停回合）独立配色 |
+| 📍 左缘定位条（Adaptive Navigation Rail） | **0.2.6 起暂不显示**（与官方新功能冲突 + react-dom 问题，是否保留/优化待后续版本）。历史能力：固定高度 Canvas minimap，任意轮次全局映射；鱼眼悬停、拖动预览、点击跳转、当前轮次高亮；配色可自适应或手动选「色系 × 明度」 |
 | ⬆ 智能加载更早历史 | 页面空闲时逐步加载更早记录；检测到页面响应开始下降时自动暂停，保持长会话流畅，需要时仍可手动继续加载 |
 | 📤 一键报告问题 | 自动生成诊断报告（版本/浏览器/性能数据/异常检测/现象标签），一键打开 GitHub issue 预填页，标题正文全带，零手写提交 |
 
-四个功能各自独立，可在「设置 → 插件配置」里可视化开关，改动即时生效；另有「📤 生成诊断报告并提交」一键入口。
+折叠 / 分隔线 / 智能加载更早历史可各自独立开关（「设置 → 插件配置」，改动即时生效）；左缘定位条与官方新功能冲突、且有 react-dom 问题，**0.2.6 起暂不显示**。另有一键「📤 生成诊断报告并提交」入口。
 
 ## 📸 效果
 
@@ -36,10 +35,10 @@
   <img src="./assets/fold-expanded.png" width="92%" alt="展开：恢复完整过程">
 </p>
 
-**左缘定位条（Canvas minimap）**：固定高度全局映射，任意长度会话可全局浏览；悬停鱼眼展开 + 摘要卡（含日期时间），拖动预览，点击跳转到阅读区顶部。
+**左缘定位条（Canvas minimap）**：__0.2.6 起暂不显示__（与官方新功能冲突 + react-dom 问题，后续版本再决定是否保留/优化）。下图为历史版本运行效果。
 
 <p align="center">
-  <img src="./assets/navigator.png" width="92%" alt="左缘定位条与悬停摘要">
+  <img src="./assets/navigator.png" width="92%" alt="左缘定位条与悬停摘要（历史版本）">
 </p>
 
 **设置面板**：四个功能独立开关 + 现象标签 + 一键「生成诊断报告并提交」，改动即时生效。
@@ -57,7 +56,7 @@
 dsh plugin --profile web add @bananasoldier01/dsh-tidychat
 
 # 方式 2：从 GitHub 安装（推荐钉版本，可复现）
-dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat.git#v0.2.5
+dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat.git#v0.2.6
 ```
 
 安装后重启 dsh web + 硬刷新（Cmd+Shift+R）。
@@ -71,7 +70,7 @@ dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat
 dsh plugin --profile web update @bananasoldier01/dsh-tidychat
 
 # 方式 B：装的是某个 tag，改钉到新 tag 重新 add
-dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat.git#v0.2.5
+dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat.git#v0.2.6
 ```
 
 更新后同样重启 dsh web + 硬刷新。
@@ -114,7 +113,7 @@ dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat
 3. **长摘要折行**：`overflow-wrap: anywhere`，含长代码/URL 的摘要在卡片内折行不溢出
 4. **解析增强**：颜色解析支持 `rgba` 逗号/空格+斜杠语法、`#rgb/#rgba/#rrggbb/#rrggbbaa`、`transparent`
 
-### 0.2.3（已发布，本次）—— npm 发布准备（awesome-dsh-plugin 投稿推荐项）
+### 0.2.3（已发布）—— npm 发布准备（awesome-dsh-plugin 投稿推荐项）
 
 1. **peerDependencies 化**：`@deepseek-ai/dsh-settings` 由 `dependencies` 移入 `peerDependencies`（官方运行时包由宿主 profile 提供，避免重复运行时）
 2. **npm 发布**：`prepublishOnly` 自动构建，`@bananasoldier01/dsh-tidychat@0.2.3` 已公开发布（预构建产物，安装免 `allowBuilds` 授权）；推荐安装方式改为 `dsh plugin add @bananasoldier01/dsh-tidychat`
@@ -124,13 +123,19 @@ dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat
 
 功能零改动，仅 npm 包内容更新：`README.en.md` 纳入包内、`repository.url` 规范化（`npm pkg fix`）、双语 README 随包发布。awesome-dsh-plugin 收录 PR #3067 已合并（session 分类 + 截图条目）。
 
-### 0.2.5（已发布，本次）—— Hardening（工程收口）
+### 0.2.5（已发布）—— Hardening（工程收口）
 
 1. **折叠状态会话隔离（P0）**：`foldState` 改为 `Map<sessionId, Map<turn, boolean>>`，修复跨会话同轮次串扰（会话 A 展开第 5 轮 → 会话 B 第 5 轮不再错误继承展开态）
 2. **定位条 pointermove 节流**：高频移动只记录最新坐标，rAF 帧内统一处理一次（不再每事件一次 React 渲染）；离开/卸载时清理挂起帧
 3. **测量前不渲染**：宿主布局未就绪（`pos === null`）时不再渲染到写死的 280px 猜测位，测量成功后再出现
 4. **快照/DOM 轮次一致性诊断**：报告新增「会话快照轮次 vs DOM 轮次」对照，不一致时报 ⚠️（加载中或 DOM 更新滞后）
 5. 文档钉版示例随版本更新；package description 补齐「智能加载更早历史」
+
+### 0.2.6（已发布，本次）—— 折叠 & 分隔线重做；左缘定位条暂缓
+
+1. **折叠重做（Codex 式）**：只折叠思考（Think）+ 工具调用，保留用户消息和最终正式回复；控制条为「用时 X + 箭头 + 分隔线」，整条可点击，折叠时箭头朝右、展开时朝下；过程与正式回复之间再画一条分隔线。
+2. **分隔线重做**：过程/回复分界改用行内分隔线（思考芯片 `::after` 绘制，React 重渲染不清除），并加深到 `rgba(96,96,96,0.85)`（对比度更清晰）。
+3. **⚠️ 左缘定位条暂缓显示**：DSH 0.1.2-rc.1 起官方原生新增右侧 TurnNavigator 与原生折叠，与插件左缘定位条功能重叠；同时插件定位条依赖 `react-dom`（当前插件 / 宿主均未提供）。因此从本版起**左缘定位条不再显示**。是否保留、或改造成与官方新的导航/折叠协同，待后续版本再定（源码与历史截图保留）。
 
 ### 下一版本（候选）
 

@@ -29,31 +29,63 @@ const CSS = `
   color: transparent;
   user-select: none;
 }
+/* 行内分隔线（展开时）：用思考芯片的 ::after 画，React 重渲染不会清掉 CSS 伪元素。 */
+[data-variant="think"][data-tidychat-divider-answer]::after {
+  content: '';
+  display: block;
+  border-top: 1px solid var(--dsw-alias-border-l2, rgba(96,96,96,0.85));
+  opacity: 0.95;
+  margin: 8px 0 8px 22px;
+  height: 0;
+  overflow: hidden;
+  color: transparent;
+  user-select: none;
+}
+[data-tidychat-answer-divider] {
+  border-top: 1px solid var(--dsw-alias-border-l2, rgba(96,96,96,0.85));
+  opacity: 0.95;
+  margin: 10px 8px;
+  height: 0;
+  overflow: hidden;
+  color: transparent;
+  user-select: none;
+}
 [data-tidychat-divider-block] {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  margin: 10px 8px 8px 8px;
+  cursor: pointer;
+}
+.tidychat-ctl-head {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: 14px 8px 8px 8px;
 }
 .tidychat-ctl-label {
-  font-size: 11px;
+  font-size: 14px;
   color: var(--dsw-alias-label-secondary, #666);
   white-space: nowrap;
   flex: none;
 }
 .tidychat-ctl-line {
-  flex: 1;
-  border-top: 1px solid var(--dsw-alias-border-l2, rgba(128,128,128,0.55));
+  width: 100%;
+  border-top: 1px solid var(--dsw-alias-border-l2, rgba(96,96,96,0.8));
+  opacity: 0.9;
+  margin-top: 2px;
 }
 .tidychat-ctl-btn {
-  font-size: 11px;
+  font-size: 14px;
+  line-height: 1;
   cursor: pointer;
-  border: 1px solid var(--dsw-alias-border-l2, rgba(128,128,128,0.4));
+  border: none;
   background: transparent;
-  color: var(--dsw-alias-label-primary, #222);
-  border-radius: 6px;
-  padding: 1px 8px;
+  color: var(--dsw-alias-label-secondary, #666);
+  border-radius: 4px;
+  padding: 0 4px;
   flex: none;
+  transition: transform .18s ease;
 }
 .tidychat-ctl-btn:hover {
   background: var(--dsw-alias-interactive-bg-hover, rgba(127,127,127,0.1));
@@ -65,7 +97,13 @@ const CSS = `
   white-space: nowrap;
 }
 [data-tidychat-folded], [data-tidychat-folded-inline] {
-  display: none !important;
+  opacity: 0;
+  height: 0 !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden;
+  transition: opacity .18s ease, height .18s ease, margin .18s ease, padding .18s ease;
 }
 .tidychat-nav-rail {
   position: fixed;
@@ -439,7 +477,7 @@ export function apply(ctx: any): void {
   }
 
   // 设置：tidychat 命名空间，四个开关 + 定位条配色（默认色 auto 尊重主题 + 强调色 auto 跟随主题品牌色）；读不到 settings 服务时全开。
-  const config = { fold: true, divider: true, navigator: true, autoLoad: true, navColor: 'auto', navColorLight: 'l3', navAccent: 'auto', navAccentLight: 'l3' }
+  const config = { fold: true, divider: true, navigator: false, autoLoad: false, navColor: 'auto', navColorLight: 'l3', navAccent: 'auto', navAccentLight: 'l3' }
   let settingsScope: any = null
   const settingsFace = ctx.get('webUiSettings') ?? ctx.get('settingsScope')
   if (settingsFace !== undefined && typeof settingsFace.bind === 'function') {
@@ -475,8 +513,8 @@ export function apply(ctx: any): void {
     let hiddenContext = 0
     const all = scopedRows('[data-chat-anchor-key]')
 
-    // 1) 行内思考↔文字分隔线（独立开关 divider）
-    if (config.divider) {
+    // 1) 行内思考↔文字分隔线（独立开关 divider）；折叠时统一由 applyFold 处理，避免与折叠态冲突。
+    if (config.divider && !config.fold) {
       for (const row of all) {
         const anchor = row.getAttribute('data-chat-anchor-key') || ''
         if (anchor.indexOf('14:assistant-step') !== 0) continue
@@ -497,90 +535,130 @@ export function apply(ctx: any): void {
       }
     }
 
-    // 2) 折叠（独立开关 fold，含 turn 分组 + 控制条 + 上下文注入行隐藏）
+    // 2) 折叠（独立开关 fold）：只折叠「思考 + 工具调用」，保留用户提问与真正的答复正文。
     if (config.fold) {
-      let currentTurn: any = null
-      let pendingLeads: Element[] = []
-      const turns: any[] = []
+      interface TurnGroup { rows: Element[]; tail: Element | null; whole: Element[]; inline: Array<{ row: Element; think: Element }>; answerRow: Element | null }
+      const byTurn = new Map<number, TurnGroup>()
+      const turnOf = (row: Element): number | null => {
+        const t = row.getAttribute('data-chat-turn')
+        if (t === null) return null
+        const n = Number(t)
+        return Number.isFinite(n) ? n : null
+      }
+      // 判断某行里除了「思考/工具过程」之外是否还有真正的答复正文（文本不在 think / disclosure 内）。
+      const hasAnswerOutsideThink = (row: Element, think: Element): boolean => {
+        const walker = document.createTreeWalker(row, NodeFilter.SHOW_TEXT)
+        let node: Node | null
+        while ((node = walker.nextNode()) !== null) {
+          const txt = (node.textContent || '').replace(/\s+/g, '')
+          if (txt === '') continue
+          const el = node.parentElement
+          if (el === null) continue
+          if (el.closest('[data-variant="think"]') !== null) continue
+          if (el.closest('[data-disclosure-row]') !== null) continue
+          return true
+        }
+        return false
+      }
       for (const row of all) {
-        const anchor = row.getAttribute('data-chat-anchor-key') || ''
-        const kind = row.getAttribute('data-chat-flow-kind') || 'null'
-        const m = /^14:assistant-step(\d+):/.exec(anchor)
-        if (m !== null) {
-          const t = Number(m[1])
-          if (currentTurn === null || currentTurn.turn !== t) {
-            currentTurn = { turn: t, steps: [] as Element[], toolCalls: 0, hasTail: false, rows: [] as Element[], timing: '' }
-            for (const lead of pendingLeads) currentTurn.rows.push(lead)
-            pendingLeads = []
-            turns.push(currentTurn)
+        const turn = turnOf(row)
+        if (turn === null) continue
+        let g = byTurn.get(turn)
+        if (g === undefined) { g = { rows: [], tail: null, whole: [], inline: [], answerRow: null }; byTurn.set(turn, g) }
+        g.rows.push(row)
+        const kind = row.getAttribute('data-chat-flow-kind') || ''
+        if (kind === 'turn-tail') {
+          g.tail = row
+        } else if (kind === 'tool-call') {
+          g.whole.push(row)
+        } else if (kind === 'assistant-step') {
+          const think = row.querySelector('[data-variant="think"]')
+          if (think !== null) {
+            if (hasAnswerOutsideThink(row, think)) g.inline.push({ row, think })
+            else g.whole.push(row)
           }
-          currentTurn.steps.push(row)
-          currentTurn.rows.push(row)
-        } else if (anchor.indexOf('9:tool-call') === 0) {
-          if (currentTurn !== null) { currentTurn.toolCalls += 1; currentTurn.rows.push(row) }
-        } else if (anchor.indexOf('9:turn-tail') === 0) {
-          if (currentTurn !== null) { currentTurn.hasTail = true; currentTurn.timing = cleanTiming(row.textContent || '') }
-        } else if (kind === 'user') {
-          currentTurn = null
-          pendingLeads = []
-        } else if (kind === 'context') {
-          pendingLeads.push(row)
+          // 无 think 的 assistant-step = 纯答复正文，保持可见，不进折叠列表。
         }
       }
 
       const coveredRows = new Set<Element>()
-      for (const turn of turns) {
-        if (!turn.hasTail) continue
-        let finalRow: Element | null = null
-        for (let i = turn.steps.length - 1; i >= 0; i--) {
-          if (hasTextInStep(turn.steps[i])) { finalRow = turn.steps[i]; break }
+      for (const [turn, g] of byTurn) {
+        if (g.tail === null) continue
+        if (g.whole.length === 0 && g.inline.length === 0) continue
+        // 控制条插在「第一条要被折叠的过程行」之前（即在用户提问之后、过程之上）。
+        const firstProcess = g.rows.find((r) => g.whole.includes(r) || g.inline.some((x) => x.row === r))
+        if (firstProcess === undefined || firstProcess.parentElement === null) continue
+        for (const row of g.whole) coveredRows.add(row)
+
+        // 分隔线位置：在「最后一条过程行」之后的第一个纯答复行（assistant-step 且不在 whole/inline 中）。
+        let lastProcessIdx = -1
+        for (let i = 0; i < g.rows.length; i++) {
+          const r = g.rows[i]
+          if (g.whole.includes(r) || g.inline.some((x) => x.row === r)) lastProcessIdx = i
         }
-        const processRows: Element[] = []
-        if (finalRow === null) {
-          for (const row of turn.rows) processRows.push(row)
-        } else {
-          for (const row of turn.rows) {
-            if (row === finalRow) break
-            processRows.push(row)
-          }
+        let answerRow: Element | null = null
+        for (let i = lastProcessIdx + 1; i < g.rows.length; i++) {
+          const r = g.rows[i]
+          const kind = r.getAttribute('data-chat-flow-kind') || ''
+          if (kind === 'assistant-step' && !g.whole.includes(r) && !g.inline.some((x) => x.row === r)) { answerRow = r; break }
         }
-        const finalThink = finalRow === null ? null : finalRow.querySelector('[data-variant="think"]')
-        if (processRows.length === 0 && finalThink === null) continue
-        for (const row of processRows) coveredRows.add(row)
-        const firstRow = turn.rows[0]
-        if (firstRow === undefined || firstRow.parentElement === null) continue
+        // 注意：若没有独立的纯答复行（正式回复内联在思考行里），不加块级分隔线，
+        // 改由 applyFold 在每个内联行的“思考芯片 ↔ 回复正文”之间插入行内分隔线。
 
         let ctl: HTMLElement | null = null
-        const prev = firstRow.previousElementSibling as HTMLElement | null
-        if (prev !== null && prev.hasAttribute && prev.hasAttribute('data-tidychat-divider-block') && prev.getAttribute('data-tidychat-turn') === String(turn.turn)) {
-          ctl = prev
+        // 优先复用已存在的同回合控制条（按 data-tidychat-turn 找），避免 observer 重跑时不断重插。
+        const parentEl = firstProcess.parentElement
+        const existingCtl = parentEl.querySelector<HTMLElement>('[data-tidychat-divider-block][data-tidychat-turn="' + String(turn) + '"]')
+        if (existingCtl !== null) {
+          ctl = existingCtl
+          if (existingCtl.nextElementSibling !== firstProcess) parentEl.insertBefore(existingCtl, firstProcess)
         } else {
           ctl = document.createElement('div')
           ctl.setAttribute('data-tidychat-divider-block', '1')
-          ctl.setAttribute('data-tidychat-turn', String(turn.turn))
+          ctl.setAttribute('data-tidychat-turn', String(turn))
           ctl.setAttribute('role', 'separator')
+          const head = document.createElement('div')
+          head.className = 'tidychat-ctl-head'
           const label = document.createElement('span')
           label.className = 'tidychat-ctl-label'
-          const line = document.createElement('div')
-          line.className = 'tidychat-ctl-line'
           const btn = document.createElement('button')
           btn.className = 'tidychat-ctl-btn'
           btn.setAttribute('type', 'button')
-          ctl.appendChild(label)
+          // Codex 同款细描边 chevron（收起朝右、展开朝下，由 transform 旋转驱动）。
+          const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+          svg.setAttribute('width', '12')
+          svg.setAttribute('height', '12')
+          svg.setAttribute('viewBox', '0 0 12 12')
+          svg.setAttribute('fill', 'none')
+          const chevPath = document.createElementNS('http://www.w3.org/2000/svg', 'path')
+          chevPath.setAttribute('d', 'M3 4.5 L6 7.5 L9 4.5')
+          chevPath.setAttribute('stroke', 'currentColor')
+          chevPath.setAttribute('stroke-width', '1.5')
+          chevPath.setAttribute('stroke-linecap', 'round')
+          chevPath.setAttribute('stroke-linejoin', 'round')
+          svg.appendChild(chevPath)
+          btn.appendChild(svg)
+          head.appendChild(label)
+          head.appendChild(btn)
+          ctl.appendChild(head)
+          const line = document.createElement('div')
+          line.className = 'tidychat-ctl-line'
           ctl.appendChild(line)
-          ctl.appendChild(btn)
-          btn.addEventListener('click', () => {
-            const cur = foldGet(turn.turn)
-            applyFold(turn, processRows, finalThink, ctl, !cur)
+          // Codex：整条「用时」区域可点击切换折叠/展开。
+          ctl.addEventListener('click', () => {
+            const cur = foldGet(turn)
+            const timing = g.tail !== null ? cleanTiming(g.tail.textContent || '') : ''
+            applyFold(turn, g.whole, g.inline, ctl, !cur, answerRow, timing)
           })
-          firstRow.parentElement!.insertBefore(ctl, firstRow)
+          firstProcess.parentElement!.insertBefore(ctl, firstProcess)
         }
-        const folded = foldGet(turn.turn)
-        applyFold(turn, processRows, finalThink, ctl, folded)
+        const folded = foldGet(turn)
+        const timing = g.tail !== null ? cleanTiming(g.tail.textContent || '') : ''
+        applyFold(turn, g.whole, g.inline, ctl, folded, answerRow, timing)
         if (folded) foldedCount += 1
       }
 
-      // 未覆盖的上下文注入行强制隐藏
+      // 未覆盖的上下文注入行强制隐藏（保持原行为）
       for (const row of all) {
         if (row.getAttribute('data-chat-flow-kind') !== 'context') continue
         if (coveredRows.has(row)) continue
@@ -593,28 +671,51 @@ export function apply(ctx: any): void {
     return { inline, folded: foldedCount, hiddenContext }
   }
 
-  const applyFold = (turn: any, processRows: Element[], finalThink: Element | null, ctl: HTMLElement | null, folded: boolean): void => {
-    foldSet(turn.turn, folded)
-    for (const row of processRows) {
+  const applyFold = (turn: number, wholeRows: Element[], inlineRows: Array<{ row: Element; think: Element }>, ctl: HTMLElement | null, folded: boolean, answerRow: Element | null, timing: string): void => {
+    foldSet(turn, folded)
+    for (const row of wholeRows) {
       if (folded) row.setAttribute('data-tidychat-folded', '1')
       else row.removeAttribute('data-tidychat-folded')
     }
-    if (finalThink !== null) {
-      if (folded) finalThink.setAttribute('data-tidychat-folded-inline', '1')
-      else finalThink.removeAttribute('data-tidychat-folded-inline')
+    for (const { think } of inlineRows) {
+      if (folded) think.setAttribute('data-tidychat-folded-inline', '1')
+      else think.removeAttribute('data-tidychat-folded-inline')
+    }
+    // 行内分隔线：展开时给「思考芯片」加 data-tidychat-divider-answer，用 CSS ::after 画线（React 重渲染不会清掉）；收起时移除。
+    if (config.divider) {
+      for (const { think } of inlineRows) {
+        if (!folded) think.setAttribute('data-tidychat-divider-answer', '1')
+        else think.removeAttribute('data-tidychat-divider-answer')
+      }
+    }
+    // 「思考/代码」与「回复正文」之间的分隔线：**仅实际展开时显示**（收起时用时下方的线已够分隔，避免两条线叠在一起）。
+    if (answerRow !== null && answerRow.parentElement !== null) {
+      const prev = answerRow.previousElementSibling as HTMLElement | null
+      const isOurs = (el: Element | null): boolean => el instanceof HTMLElement && el.hasAttribute('data-tidychat-answer-divider')
+      if (!folded) {
+        if (!isOurs(prev)) {
+          const boundary = document.createElement('div')
+          boundary.setAttribute('data-tidychat-answer-divider', '1')
+          boundary.setAttribute('role', 'separator')
+          answerRow.parentElement.insertBefore(boundary, answerRow)
+        }
+      } else if (isOurs(prev)) {
+        (prev as HTMLElement).remove()
+      }
     }
     if (ctl !== null) {
       const label = ctl.querySelector('.tidychat-ctl-label')
-      const btn = ctl.querySelector('.tidychat-ctl-btn')
-      const thinkCount = processRows.filter((r) => (r.getAttribute('data-chat-anchor-key') || '').indexOf('14:assistant-step') === 0).length + (finalThink !== null ? 1 : 0)
-      const totalSteps = thinkCount + turn.toolCalls
-      const parts = [folded ? ('过程 ' + totalSteps + ' 步') : ('已展开 ' + totalSteps + ' 步')]
-      if (turn.timing !== '') parts.push(turn.timing)
-      const labelText = parts.join(' · ')
-      const btnText = folded ? '展开' : '收起'
+      const btn = ctl.querySelector<HTMLElement>('.tidychat-ctl-btn')
+      const totalSteps = wholeRows.length + inlineRows.length
+      // Codex 式：优先显示「用时 X」；箭头固定 ▾，折叠时旋转 -90°（朝右）、展开时 0°（朝下），带过渡。
+      const labelText = timing !== '' ? timing : (folded ? ('过程 ' + totalSteps + ' 步') : ('已展开 ' + totalSteps + ' 步'))
       // 只在文案真正变化时才写入，避免相同 textContent 反复触发 DOM mutation
       if (label !== null && label.textContent !== labelText) label.textContent = labelText
-      if (btn !== null && btn.textContent !== btnText) btn.textContent = btnText
+      if (btn !== null) {
+        // 只驱动 SVG chevron 的旋转：折叠 -90°（朝右）、展开 0°（朝下）。
+        const rot = folded ? 'rotate(-90deg)' : 'rotate(0deg)'
+        if (btn.style.transform !== rot) btn.style.transform = rot
+      }
     }
   }
 
@@ -1050,8 +1151,8 @@ export function apply(ctx: any): void {
         if (snap !== null && snap !== undefined && snap.status === 'ready' && snap.value) {
           config.fold = snap.value.fold ?? true
           config.divider = snap.value.divider ?? true
-          config.navigator = snap.value.navigator ?? true
-          config.autoLoad = snap.value.autoLoad ?? true
+          config.navigator = snap.value.navigator ?? false
+          config.autoLoad = snap.value.autoLoad ?? false
           config.navColor = typeof snap.value.navColor === 'string' ? snap.value.navColor : 'auto'
           config.navColorLight = typeof snap.value.navColorLight === 'string' ? snap.value.navColorLight : 'l3'
           config.navAccent = typeof snap.value.navAccent === 'string' ? snap.value.navAccent : 'auto'
@@ -1088,7 +1189,12 @@ export function apply(ctx: any): void {
     if (mainObserver !== null && next === mainTarget) return
     if (mainObserver !== null) mainObserver.disconnect()
     mainTarget = next
-    mainObserver = new MutationObserver(() => {
+    mainObserver = new MutationObserver((muts) => {
+      // 只关心“非插件自插”的节点变更；插件自己插入/移动的 data-tidychat-* 节点不触发重扫，
+      // 避免 控制条/分隔线 被 observer 反复重插造成循环。
+      const isTidychatNode = (n: Node): boolean => n instanceof Element && Array.from(n.attributes).some((a) => a.name.startsWith('data-tidychat-'))
+      const relevant = muts.some((m) => [...m.addedNodes, ...m.removedNodes].some((n) => !isTidychatNode(n)))
+      if (!relevant) return
       dirty = true
       if (mainPending !== null) return
       mainPending = setTimeout(() => { mainPending = null; if (!isGovernorBusy()) scan() }, 250)
@@ -1452,7 +1558,7 @@ export function apply(ctx: any): void {
       try { unsub = settingsScope.subscribe(pull) } catch { unsub = () => {} }
       return () => { try { unsub() } catch { /* ignore */ } }
     }, [])
-    const value = (snap !== null && snap !== undefined && snap.value) ? snap.value : { fold: true, divider: true, navigator: true, autoLoad: true, navColor: 'auto', navColorLight: 'l3', navAccent: 'auto', navAccentLight: 'l3', debug: false }
+    const value = (snap !== null && snap !== undefined && snap.value) ? snap.value : { fold: true, divider: true, navigator: false, autoLoad: false, navColor: 'auto', navColorLight: 'l3', navAccent: 'auto', navAccentLight: 'l3', debug: false }
     const writable = snap !== null && snap !== undefined ? snap.writable : false
     const fields: Array<[string, string, string]> = [
       ['fold', '自动折叠已完成轮次', '隐藏思考、工具调用与中间文字，只保留最终结论，控制条含处理时长。'],

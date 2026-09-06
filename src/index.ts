@@ -6,11 +6,11 @@
  * 浏览器半通过 settingsScope 读取同一命名空间并即时生效。
  */
 
-import { installSettingsSection, settingsNamespace } from '@deepseek-ai/dsh-settings'
+import type { Context } from '@deepseek-ai/cordis'
 import z from 'schemastery'
 
-/** 设置命名空间（需在 dsh-host-apiproxy 的 WEB_SETTINGS_NAMESPACES 白名单内）。 */
-export const TIDYCHAT_SETTINGS_NAMESPACE = settingsNamespace('tidychat')
+/** 设置命名空间（v0.1.3-alpha.1 起 settings 用小写连字符字符串命名空间注册，不再经 settingsNamespace()）。 */
+export const TIDYCHAT_SETTINGS_NAMESPACE = 'tidychat' as const
 
 /** 插件配置。 */
 export interface Config {
@@ -42,8 +42,8 @@ export const NAV_LIGHT_KEYS = ['l1', 'l2', 'l3', 'l4', 'l5'] as const
 export const Config: z<Config> = z.object({
   fold: z.boolean().default(true),
   divider: z.boolean().default(true),
-  navigator: z.boolean().default(true),
-  autoLoad: z.boolean().default(true),
+  navigator: z.boolean().default(false),
+  autoLoad: z.boolean().default(false),
   navColor: z.union(NAV_HUE_KEYS).default('auto'),
   navColorLight: z.union(NAV_LIGHT_KEYS).default('l3'),
   navAccent: z.union(NAV_ACCENT_KEYS).default('auto'),
@@ -52,10 +52,14 @@ export const Config: z<Config> = z.object({
 
 export const inject: string[] = []
 
-export function apply(ctx: any, config?: Config): void {
+export function apply(ctx: Context, config?: Config): void {
   // 注册 settings 命名空间；宿主侧不消费，setSource/onChange 留空。
-  installSettingsSection(ctx, TIDYCHAT_SETTINGS_NAMESPACE, Config, config ?? {}, {
-    setSource: () => {},
-    onChange: () => {},
+  // v0.1.3-alpha.1 起 dsh-settings 移除 installSettingsSection/settingsNamespace，
+  // 改用 ctx.settings.installSection(owner, ns, schema, entry, hooks)。
+  ctx.inject(['settings'], (settingsCtx) => {
+    settingsCtx.settings.installSection(ctx, TIDYCHAT_SETTINGS_NAMESPACE, Config, config ?? {}, {
+      setSource: () => {},
+      onChange: () => {},
+    })
   })
 }
