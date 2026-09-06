@@ -2,11 +2,11 @@
 
 > [中文](./README.md)
 
-> **▼ DSH v0.1.2-rc.1 compatibility note**
-> - **Supported range**: the plugin targets DSH ≥ 0.1.0-rc.7 ~ 0.1.1-rc.x and is also verified on **DSH 0.1.2-rc.1**.
-> - **Feature overlap**: since 0.1.2 the host natively folds process content + System prompt and adds a right-edge TurnNavigator, both overlapping the plugin's fold / left-edge rail.
-> - **Recommendation**: if you use the native fold, disable the plugin's fold (pick one to avoid double-folding).
-> - **Left rail paused**: since 0.2.6 the left-edge rail is **not shown** because it conflicts with the official new feature and has a `react-dom` dependency issue; whether to keep or rework it is deferred to a future version.
+> **▼ DSH version compatibility**
+> - **Supported range**: the plugin supports **DSH ≥ 0.1.0-rc.7** (incl. 0.1.1-rc.x) and is verified on **DSH 0.1.2-rc.1**.
+> - **Feature overlap**: since DSH 0.1.2 the host natively folds process content + System prompt and adds a right-edge TurnNavigator, both overlapping the plugin's fold / left-edge rail.
+> - **Recommendation**: pick one with the native fold (disable the plugin's fold if you use the native one) to avoid double-folding.
+> - **Left rail paused**: since 0.2.6 the left-edge rail is **not shown** (conflicts with the official new feature + `react-dom` issue); keep/rework is deferred to a future version.
 
 Turn long DSH conversations into a **scannable, skippable** stream of conclusions.
 
