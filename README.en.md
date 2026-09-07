@@ -5,19 +5,20 @@
 > **▼ DSH version compatibility**
 > | DSH version | settings registration | Fold / divider / auto-load | Left rail |
 > | --- | --- | --- | --- |
-> | 0.1.0-rc.7 / 0.1.1-rc.x | `register` | ✅ works | ⛔ paused since 0.2.6 |
-> | 0.1.2-alpha.2+ / 0.1.2-rc.1 | `installSection` | ✅ works | ⛔ paused since 0.2.6 |
+> | 0.1.0-rc.7 / 0.1.1-rc.x | `register` (v0.2.7) / `installSettingsSection` (v0.2.5) | ⚠️ fold/divider only work on v0.2.5 (v0.2.7 needs `data-chat-turn`, absent on old DSH); auto-load works | ✅ available (navigator on; old slot + anchors present) |
+> | 0.1.2-alpha.2+ / 0.1.2-rc.1 | `installSection` | ✅ works | ⛔ paused (official right TurnNavigator + `react-dom`) |
 >
 > - **Settings auto-adapts**: the plugin picks the registration API per host version — `installSection` on 0.1.2+, `register` on 0.1.0-rc.7 / 0.1.1-rc.x — so the same plugin loads and registers its toggles across **DSH 0.1.0-rc.7 → 0.1.2-rc.1**.
+> - **Left rail**: **available on old DSH without the official right-edge TurnNavigator (0.1.0-rc.7 ~ 0.1.1-rc.x)** (navigator on; the `conversation.session.header.utilities` slot exists and is rendered, and the needed DOM anchors are present — confirmed from the 0.1.1-rc.2 source). **Paused on DSH 0.1.2+** (official right TurnNavigator present), because it overlaps the official feature and depends on `react-dom` (not provided). Keep/rework is deferred to a future version.
+> - **Fold / divider**: v0.2.7 relies on `data-chat-turn` (only emitted by `dsh-client-ui-chat` 0.1.2+); old DSH lacks it, so **v0.2.7's fold/divider do not work there** (auto-load does). On old DSH use **v0.2.5** for fold/divider, or **upgrade to DSH 0.1.2+**.
 > - **Feature overlap**: since DSH 0.1.2 the host natively folds process content + System prompt and adds a right-edge TurnNavigator, overlapping the plugin's fold / left-edge rail.
 > - **Usage recommendation**:
->   - **DSH 0.1.2+**: pick one with the native fold — if you use the native fold, disable the plugin's fold (avoid double-folding); if you want the plugin's fold control bar, disable the native fold.
->   - **DSH ≤ 0.1.1-rc.x**: fold / divider / smart auto-load work normally; the left rail is likewise paused (disabled since 0.2.6).
-> - **Left rail paused**: the left-edge rail is **not shown** since 0.2.6, for two reasons: it overlaps the **right-edge TurnNavigator / native fold** that the host added in DSH 0.1.2, and its implementation depends on **`react-dom`** (not provided by the plugin or host). Whether to keep it, or rework it to work with the official navigator/fold, is **deferred to a future version** (source and historical screenshots retained).
+>   - **DSH 0.1.2+**: pick one with the native fold — if you use the native fold, disable the plugin's fold (avoid double-folding); if you want the plugin's fold control bar, disable the native fold. The left rail is paused by default.
+>   - **DSH ≤ 0.1.1-rc.x**: the left rail is available (navigator on); fold/divider use v0.2.5 or upgrade to 0.1.2+.
 
 Turn long DSH conversations into a **scannable, skippable** stream of conclusions.
 
-In multi-task sessions, thoughts, tool calls, intermediate text and final summaries pile up, making it hard to find "the conclusion of that last task". dsh-tidychat automatically folds completed turns into a single conclusion line and separates thinking from prose with a divider; the original Codex-style navigation rail (Canvas minimap) on the left edge is **paused since 0.2.6** because it conflicts with the official new feature and has a `react-dom` dependency issue — keep/rework is left to a future version.
+In multi-task sessions, thoughts, tool calls, intermediate text and final summaries pile up, making it hard to find "the conclusion of that last task". dsh-tidychat automatically folds completed turns into a single conclusion line and separates thinking from prose with a divider; the Codex-style navigation rail (Canvas minimap) on the left edge is **available on old DSH without the official right-edge TurnNavigator (0.1.0-rc.7 ~ 0.1.1-rc.x, navigator on)** and **paused on DSH 0.1.2+** (overlaps the official feature + `react-dom` dependency).
 
 > 🔌 Ecosystem: tagged `#dsh` · `#dsh-plugin`, contributions welcome.
 
@@ -27,11 +28,11 @@ In multi-task sessions, thoughts, tool calls, intermediate text and final summar
 | --- | --- |
 | 🗂 Auto-fold | Completed turns fold away thinking (Think), tool calls and intermediate text, keeping only the final summary; the control bar shows "N steps" and timing (duration / first token / rate) |
 | ➖ Divider | A solid line between thinking and prose — one glance separates "process" from "conclusion" |
-| 📍 Left-edge Navigation Rail (Adaptive) | **Paused since 0.2.6** (conflicts with the official new feature + `react-dom` issue; keep/rework TBD). Historical capability: fixed-height Canvas minimap mapping any turn count; fish-eye hover, drag preview, click-to-jump, current-turn highlight; color auto-adapts or manual `hue × lightness`, accent independently configurable |
+| 📍 Left-edge Navigation Rail (Adaptive) | **Available on old DSH (0.1.0-rc.7 ~ 0.1.1-rc.x, no official right TurnNavigator)** (navigator on); **paused on DSH 0.1.2+** (official-feature conflict + `react-dom`). Historical capability: fixed-height Canvas minimap mapping any turn count; fish-eye hover, drag preview, click-to-jump, current-turn highlight; color auto-adapts or manual `hue × lightness`, accent independently configurable |
 | ⬆ Smart earlier-history load | Gradually loads older records while the page is idle; pauses automatically when the page's responsiveness drops, keeping long sessions smooth; manual load still available |
 | 📤 One-click issue report | Generates a diagnostic report (version / browser / performance / anomaly detection / symptom tags) and opens a pre-filled GitHub issue — title and body included, zero manual writing |
 
-Fold / divider / smart early-history load are independent toggles in "Settings → Plugin Configuration", applied instantly; the left-edge rail is **paused since 0.2.6** (official-feature conflict + `react-dom` issue). Also includes a one-click "Generate diagnostic report & submit" entry.
+Fold / divider / smart early-history load are independent toggles in "Settings → Plugin Configuration", applied instantly; the left-edge rail is **available on old DSH without the official right TurnNavigator** (navigator on) and **paused on DSH 0.1.2+** (default off). Also includes a one-click "Generate diagnostic report & submit" entry.
 
 ## 📸 Screenshots
 
@@ -42,7 +43,7 @@ Fold / divider / smart early-history load are independent toggles in "Settings �
   <img src="./assets/fold-expanded.png" width="92%" alt="Expanded: full process restored">
 </p>
 
-**Left-edge navigation rail (Canvas minimap)**: _paused since 0.2.6_ (official-feature conflict + `react-dom` issue; keep/rework TBD). The image below shows the historical version.
+**Left-edge navigation rail (Canvas minimap)**: available on **old DSH without the official right TurnNavigator (0.1.0-rc.7 ~ 0.1.1-rc.x, navigator on)**; **paused on DSH 0.1.2+** (official-feature conflict + `react-dom`). The image below shows the historical version.
 
 <p align="center">
   <img src="./assets/navigator.png" width="92%" alt="Left-edge navigation rail and hover summary">
