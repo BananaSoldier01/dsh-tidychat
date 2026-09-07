@@ -539,11 +539,30 @@ export function apply(ctx: any): void {
     if (config.fold) {
       interface TurnGroup { rows: Element[]; tail: Element | null; whole: Element[]; inline: Array<{ row: Element; think: Element }>; answerRow: Element | null }
       const byTurn = new Map<number, TurnGroup>()
+      // 旧版 DSH（0.1.0-rc.7 ~ 0.1.1-rc.x）的聊天 DOM 没有 data-chat-turn（0.1.2+ 的 dsh-client-ui-chat 才输出）。
+      // 这里做兼容回退：有 data-chat-turn 走新逻辑；没有则按 v0.2.5 的方式从 data-chat-anchor-key 解析 turn，
+      // 并顺序沿用当前 turn（tool-call / turn-tail 等行没有 info），遇到 user 行重置为 null。
+      let fallbackTurn: number | null = null
       const turnOf = (row: Element): number | null => {
+        // 新 DOM（0.1.2+）：直接读 data-chat-turn。
         const t = row.getAttribute('data-chat-turn')
-        if (t === null) return null
-        const n = Number(t)
-        return Number.isFinite(n) ? n : null
+        if (t !== null) {
+          const n = Number(t)
+          return Number.isFinite(n) ? n : null
+        }
+        // 旧 DOM 回退：user 行开启新 turn；assistant-step 从 anchor 解析；其余行沿用当前 turn。
+        const kind = row.getAttribute('data-chat-flow-kind') || ''
+        if (kind === 'user') {
+          fallbackTurn = null
+          return null
+        }
+        const anchor = row.getAttribute('data-chat-anchor-key') || ''
+        const m = /^14:assistant-step(\d+):/.exec(anchor)
+        if (m !== null) {
+          fallbackTurn = Number(m[1])
+          return fallbackTurn
+        }
+        return fallbackTurn
       }
       // 判断某行里除了「思考/工具过程」之外是否还有真正的答复正文（文本不在 think / disclosure 内）。
       const hasAnswerOutsideThink = (row: Element, think: Element): boolean => {

@@ -5,16 +5,16 @@
 > **▼ DSH version compatibility**
 > | DSH version | settings registration | Fold / divider / auto-load | Left rail |
 > | --- | --- | --- | --- |
-> | 0.1.0-rc.7 / 0.1.1-rc.x | `register` (v0.2.7) / `installSettingsSection` (v0.2.5) | ⚠️ fold/divider only work on v0.2.5 (v0.2.7 needs `data-chat-turn`, absent on old DSH); auto-load works | ✅ available (navigator on; old slot + anchors present) |
+> | 0.1.0-rc.7 / 0.1.1-rc.x | `register` (v0.2.7+) / `installSettingsSection` (v0.2.5) | ✅ fold/divider/auto-load work (v0.2.8+ falls back to anchor-key; v0.2.7 doesn't) | ✅ available (navigator on; old slot + anchors present) |
 > | 0.1.2-alpha.2+ / 0.1.2-rc.1 | `installSection` | ✅ works | ⛔ paused (official right TurnNavigator + `react-dom`) |
 >
 > - **Settings auto-adapts**: the plugin picks the registration API per host version — `installSection` on 0.1.2+, `register` on 0.1.0-rc.7 / 0.1.1-rc.x — so the same plugin loads and registers its toggles across **DSH 0.1.0-rc.7 → 0.1.2-rc.1**.
 > - **Left rail**: **available on old DSH without the official right-edge TurnNavigator (0.1.0-rc.7 ~ 0.1.1-rc.x)** (navigator on; the `conversation.session.header.utilities` slot exists and is rendered, and the needed DOM anchors are present — confirmed from the 0.1.1-rc.2 source). **Paused on DSH 0.1.2+** (official right TurnNavigator present), because it overlaps the official feature and depends on `react-dom` (not provided). Keep/rework is deferred to a future version.
-> - **Fold / divider**: v0.2.7 relies on `data-chat-turn` (only emitted by `dsh-client-ui-chat` 0.1.2+); old DSH lacks it, so **v0.2.7's fold/divider do not work there** (auto-load does). On old DSH use **v0.2.5** for fold/divider, or **upgrade to DSH 0.1.2+**.
+> - **Fold / divider**: v0.2.8+ also works on old DSH — when `data-chat-turn` is absent it falls back to parsing the turn from `data-chat-anchor-key` (v0.2.5's approach). v0.2.7 lacked this fallback, so its fold/divider were broken on old DSH (auto-load worked).
 > - **Feature overlap**: since DSH 0.1.2 the host natively folds process content + System prompt and adds a right-edge TurnNavigator, overlapping the plugin's fold / left-edge rail.
 > - **Usage recommendation**:
 >   - **DSH 0.1.2+**: pick one with the native fold — if you use the native fold, disable the plugin's fold (avoid double-folding); if you want the plugin's fold control bar, disable the native fold. The left rail is paused by default.
->   - **DSH ≤ 0.1.1-rc.x**: the left rail is available (navigator on); fold/divider use v0.2.5 or upgrade to 0.1.2+.
+>   - **DSH ≤ 0.1.1-rc.x**: the left rail is available (navigator on); fold/divider/auto-load also work on v0.2.8+.
 
 Turn long DSH conversations into a **scannable, skippable** stream of conclusions.
 
@@ -64,7 +64,7 @@ Prerequisite: DSH (Web) installed, `pnpm` on PATH.
 dsh plugin --profile web add @bananasoldier01/dsh-tidychat
 
 # Option 2: from GitHub (pin a tag for reproducibility)
-dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat.git#v0.2.7
+dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat.git#v0.2.8
 ```
 
 Restart dsh web + hard refresh (Cmd+Shift+R) after installing.
@@ -78,7 +78,7 @@ The plugin is installed as a profile dependency; updating just re-pulls that dep
 dsh plugin --profile web update @bananasoldier01/dsh-tidychat
 
 # Option B: pinned to a tag — re-add pinned to the new tag
-dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat.git#v0.2.7
+dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat.git#v0.2.8
 ```
 
 Restart dsh web + hard refresh after updating.
@@ -146,10 +146,15 @@ No functional changes — npm package content only: `README.en.md` bundled, `rep
 3. **⚠️ Left rail paused**: since DSH 0.1.2-rc.1 the host natively adds a right-edge TurnNavigator and native fold, overlapping the plugin's left rail; the rail also depends on `react-dom` (not provided by the plugin or host). So from this version the **left-edge rail is not shown**. Whether to keep it, or rework it to work with the official navigator/fold, is deferred to a future version (source and historical screenshots retained).
 4. **Fold retry notices too (issue #8)**: the host renders a retried model request as a `model-retry` row ("已重试模型请求"), which was not folded before. Since this version `model-retry` is treated as process noise and folded together with thinking/tool calls.
 
-### 0.2.7 (released, current) — Settings API backward compatibility
+### 0.2.7 (released) — Settings API backward compatibility
 
 1. **Settings registration auto-adapts**: the host chooses the right API per DSH version — `installSection` on 0.1.2+, `register` on 0.1.0-rc.7 / 0.1.1-rc.x — so the same plugin loads and registers its settings toggles across **DSH 0.1.0-rc.7 → 0.1.2-rc.1** (0.2.6 relied on the 0.1.2 `installSection`, which made old DSH report "Failed to load plugins").
 2. **Left rail**: still conflicts with the official feature and depends on `react-dom`; remains paused (this compatibility change does not restore it).
+
+### 0.2.8 (released, current) — Full plugin works on old DSH (no right TurnNavigator)
+
+1. **Fold/divider fallback**: when `data-chat-turn` is missing (old DSH 0.1.0-rc.7 ~ 0.1.1-rc.x), the fold grouping falls back to parsing the turn from `data-chat-anchor-key` (v0.2.5's approach), so fold/divider also work on old DSH (0.1.2+ still uses `data-chat-turn`, unchanged).
+2. **Left rail confirmed available**: old DSH has no official right TurnNavigator; the `conversation.session.header.utilities` slot exists and is rendered, and the needed DOM anchors are all present (confirmed from the 0.1.1-rc.2 source) — so the left rail works on **old DSH (0.1.0-rc.7 ~ 0.1.1-rc.x, navigator on)**; it stays paused on DSH 0.1.2+ because of the official right TurnNavigator.
 
 ### Next (candidates)
 
