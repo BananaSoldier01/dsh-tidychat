@@ -3,10 +3,16 @@
 > [中文](./README.md)
 
 > **▼ DSH version compatibility**
-> - **Supported range**: the plugin supports **DSH ≥ 0.1.0-rc.7** (incl. 0.1.1-rc.x) and is verified on **DSH 0.1.2-rc.1**.
-> - **Settings auto-adapts**: the settings registration API is chosen per host version (`installSection` on 0.1.2+, `register` on 0.1.0-rc.7 / 0.1.1-rc.x), so the same plugin works across 0.1.0-rc.7 → 0.1.2-rc.1.
-> - **Feature overlap**: since DSH 0.1.2 the host natively folds process content + System prompt and adds a right-edge TurnNavigator, both overlapping the plugin's fold / left-edge rail.
-> - **Recommendation**: pick one with the native fold (disable the plugin's fold if you use the native one) to avoid double-folding.
+> | DSH version | settings registration | Fold / divider / auto-load | Left rail |
+> | --- | --- | --- | --- |
+> | 0.1.0-rc.7 / 0.1.1-rc.x | `register` | ✅ works | ⛔ paused since 0.2.6 |
+> | 0.1.2-alpha.2+ / 0.1.2-rc.1 | `installSection` | ✅ works | ⛔ paused since 0.2.6 |
+>
+> - **Settings auto-adapts**: the plugin picks the registration API per host version — `installSection` on 0.1.2+, `register` on 0.1.0-rc.7 / 0.1.1-rc.x — so the same plugin loads and registers its toggles across **DSH 0.1.0-rc.7 → 0.1.2-rc.1**.
+> - **Feature overlap**: since DSH 0.1.2 the host natively folds process content + System prompt and adds a right-edge TurnNavigator, overlapping the plugin's fold / left-edge rail.
+> - **Usage recommendation**:
+>   - **DSH 0.1.2+**: pick one with the native fold — if you use the native fold, disable the plugin's fold (avoid double-folding); if you want the plugin's fold control bar, disable the native fold.
+>   - **DSH ≤ 0.1.1-rc.x**: fold / divider / smart auto-load work normally; the left rail is likewise paused (disabled since 0.2.6).
 > - **Left rail paused**: the left-edge rail is **not shown** since 0.2.6, for two reasons: it overlaps the **right-edge TurnNavigator / native fold** that the host added in DSH 0.1.2, and its implementation depends on **`react-dom`** (not provided by the plugin or host). Whether to keep it, or rework it to work with the official navigator/fold, is **deferred to a future version** (source and historical screenshots retained).
 
 Turn long DSH conversations into a **scannable, skippable** stream of conclusions.
