@@ -1,6 +1,6 @@
 # dsh-tidychat 交接文档（HANDOVER）
 
-> 面向：接续开发的新会话 / 新协作者。内容基于 **v0.2.6（main）** 快照。仓库根目录：`/Users/wuke/工作文件/DeepSeek_Harness/dsh-tidychat`（本机 link 模式开发）。
+> 面向：接续开发的新会话 / 新协作者。内容基于 **v0.2.7（main）** 快照。仓库根目录：`/Users/wuke/工作文件/DeepSeek_Harness/dsh-tidychat`（本机 link 模式开发）。
 
 ---
 
@@ -9,9 +9,9 @@
 `dsh-tidychat` 是一个 **DSH（DeepSeek Harness）Web 插件**：把长会话整理成「可扫读、可跳转」的结论流——四个独立开关：自动折叠已完成轮次、思考↔正文分隔线、左缘定位条（Canvas minimap 全局导航）、智能加载更早历史；外加「生成诊断报告并提交 GitHub issue」一键入口。**注意：左缘定位条自 0.2.6 起暂缓显示**（与官方新功能冲突 + react-dom 问题），源码与历史截图保留。
 
 - 仓库：https://github.com/BananaSoldier01/dsh-tidychat（owner：BananaSoldier01）
-- npm：`@bananasoldier01/dsh-tidychat`（public，最新 **0.2.6**）
+- npm：`@bananasoldier01/dsh-tidychat`（public，最新 **0.2.7**）
 - 插件索引：**awesome-dsh-plugin 已收录**（PR #3067 合并，session 分类 + 截图），即 dsh-market 源
-- 当前版本线：v0.2.0 → v0.2.6（0.2.0 导航条大版本；0.2.1 配色；0.2.2 提示卡可读性；0.2.3 配色/publish 准备；0.2.4 npm 元数据；0.2.5 Hardening；0.2.6 折叠/分隔线重做 + 左缘定位条暂缓）
+- 当前版本线：v0.2.0 → v0.2.7（0.2.0 导航条大版本；0.2.1 配色；0.2.2 提示卡可读性；0.2.3 配色/publish 准备；0.2.4 npm 元数据；0.2.5 Hardening；0.2.6 折叠/分隔线重做 + 左缘定位条暂缓；0.2.7 settings API 向后兼容）
 
 ---
 

@@ -4,6 +4,7 @@
 
 > **▼ DSH 版本适配**
 > - **支持范围**：插件适配 **DSH ≥ 0.1.0-rc.7**（含 0.1.1-rc.x），并已实测 **DSH 0.1.2-rc.1**。
+> - **Settings 自动适配**：注册配置的 settings API 会按宿主版本自动选用（0.1.2+ 用 `installSection`，0.1.0-rc.7 / 0.1.1-rc.x 用 `register`），同一份插件在 0.1.0-rc.7 ~ 0.1.2-rc.1 都能用。
 > - **功能重叠**：DSH 0.1.2 起官方原生新增「折叠过程内容 + System prompt」与右缘 TurnNavigator，与插件的 fold / 左缘定位条重叠。
 > - **建议**：与官方原生折叠二选一（用官方就关插件 fold，避免双折叠）。
 > - **左缘定位条暂缓**：自 0.2.6 起不再显示。原因有二：一是与 DSH 0.1.2 官方新增的**右缘 TurnNavigator / 原生折叠**功能重叠；二是定位条实现依赖 **`react-dom`**（当前插件与宿主均未提供）。是否保留、或改造成与官方导航/折叠协同，**待后续版本再决定**（源码与历史截图保留）。
@@ -56,7 +57,7 @@
 dsh plugin --profile web add @bananasoldier01/dsh-tidychat
 
 # 方式 2：从 GitHub 安装（推荐钉版本，可复现）
-dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat.git#v0.2.6
+dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat.git#v0.2.7
 ```
 
 安装后重启 dsh web + 硬刷新（Cmd+Shift+R）。
@@ -70,7 +71,7 @@ dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat
 dsh plugin --profile web update @bananasoldier01/dsh-tidychat
 
 # 方式 B：装的是某个 tag，改钉到新 tag 重新 add
-dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat.git#v0.2.6
+dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat.git#v0.2.7
 ```
 
 更新后同样重启 dsh web + 硬刷新。
@@ -131,12 +132,17 @@ dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat
 4. **快照/DOM 轮次一致性诊断**：报告新增「会话快照轮次 vs DOM 轮次」对照，不一致时报 ⚠️（加载中或 DOM 更新滞后）
 5. 文档钉版示例随版本更新；package description 补齐「智能加载更早历史」
 
-### 0.2.6（已发布，本次）—— 折叠 & 分隔线重做；左缘定位条暂缓
+### 0.2.6（已发布）—— 折叠 & 分隔线重做；左缘定位条暂缓
 
 1. **折叠重做（Codex 式）**：只折叠思考（Think）+ 工具调用，保留用户消息和最终正式回复；控制条为「用时 X + 箭头 + 分隔线」，整条可点击，折叠时箭头朝右、展开时朝下；过程与正式回复之间再画一条分隔线。
 2. **分隔线重做**：过程/回复分界改用行内分隔线（思考芯片 `::after` 绘制，React 重渲染不清除），并加深到 `rgba(96,96,96,0.85)`（对比度更清晰）。
 3. **⚠️ 左缘定位条暂缓显示**：DSH 0.1.2-rc.1 起官方原生新增右侧 TurnNavigator 与原生折叠，与插件左缘定位条功能重叠；同时插件定位条依赖 `react-dom`（当前插件 / 宿主均未提供）。因此从本版起**左缘定位条不再显示**。是否保留、或改造成与官方新的导航/折叠协同，待后续版本再定（源码与历史截图保留）。
 4. **折叠含重试提示（issue #8）**：DSH 把被重试的模型请求渲染为 `model-retry` 行（“已重试模型请求”），此前折叠不会收起它。本版起 `model-retry` 作为过程噪音随思考/工具调用一起折叠。
+
+### 0.2.7（已发布，本次）—— settings API 向后兼容
+
+1. **settings 注册自动适配**：宿主注册配置时按 DSH 版本自动选用 API——0.1.2+ 用 `installSection`，0.1.0-rc.7 / 0.1.1-rc.x 用 `register`——让同一份插件在 **DSH 0.1.0-rc.7 ~ 0.1.2-rc.1** 都能正常加载并注册设置开关（此前 0.2.6 沿用 0.1.2 的 `installSection`，在旧版 DSH 上会报 “Failed to load plugins”）。
+2. **左缘定位条**：仍与官方新功能冲突、且依赖 `react-dom`，继续暂缓显示（本次兼容不恢复它）。
 
 ### 下一版本（候选）
 

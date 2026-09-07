@@ -4,6 +4,7 @@
 
 > **▼ DSH version compatibility**
 > - **Supported range**: the plugin supports **DSH ≥ 0.1.0-rc.7** (incl. 0.1.1-rc.x) and is verified on **DSH 0.1.2-rc.1**.
+> - **Settings auto-adapts**: the settings registration API is chosen per host version (`installSection` on 0.1.2+, `register` on 0.1.0-rc.7 / 0.1.1-rc.x), so the same plugin works across 0.1.0-rc.7 → 0.1.2-rc.1.
 > - **Feature overlap**: since DSH 0.1.2 the host natively folds process content + System prompt and adds a right-edge TurnNavigator, both overlapping the plugin's fold / left-edge rail.
 > - **Recommendation**: pick one with the native fold (disable the plugin's fold if you use the native one) to avoid double-folding.
 > - **Left rail paused**: the left-edge rail is **not shown** since 0.2.6, for two reasons: it overlaps the **right-edge TurnNavigator / native fold** that the host added in DSH 0.1.2, and its implementation depends on **`react-dom`** (not provided by the plugin or host). Whether to keep it, or rework it to work with the official navigator/fold, is **deferred to a future version** (source and historical screenshots retained).
@@ -56,7 +57,7 @@ Prerequisite: DSH (Web) installed, `pnpm` on PATH.
 dsh plugin --profile web add @bananasoldier01/dsh-tidychat
 
 # Option 2: from GitHub (pin a tag for reproducibility)
-dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat.git#v0.2.6
+dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat.git#v0.2.7
 ```
 
 Restart dsh web + hard refresh (Cmd+Shift+R) after installing.
@@ -70,7 +71,7 @@ The plugin is installed as a profile dependency; updating just re-pulls that dep
 dsh plugin --profile web update @bananasoldier01/dsh-tidychat
 
 # Option B: pinned to a tag — re-add pinned to the new tag
-dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat.git#v0.2.6
+dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat.git#v0.2.7
 ```
 
 Restart dsh web + hard refresh after updating.
@@ -131,12 +132,17 @@ No functional changes — npm package content only: `README.en.md` bundled, `rep
 4. **Snapshot/DOM turn-consistency check**: the report now compares session-snapshot turns with DOM turns and flags mismatches (loading or DOM lag)
 5. Version pins updated; package description now lists all four features
 
-### 0.2.6 (released, current) — Fold & divider redo; left rail paused
+### 0.2.6 (released) — Fold & divider redo; left rail paused
 
 1. **Fold redo (Codex-style)**: only folds thinking (Think) + tool calls, keeping the user message and the final formal reply; the control bar is "duration X + arrow + divider", whole bar clickable, arrow points right when folded and down when expanded; a separate divider is drawn between process and reply.
 2. **Divider redo**: the process/reply boundary now uses an inline divider (drawn via the thinking chip's `::after`, survives React re-renders) and is darkened to `rgba(96,96,96,0.85)` for better contrast.
 3. **⚠️ Left rail paused**: since DSH 0.1.2-rc.1 the host natively adds a right-edge TurnNavigator and native fold, overlapping the plugin's left rail; the rail also depends on `react-dom` (not provided by the plugin or host). So from this version the **left-edge rail is not shown**. Whether to keep it, or rework it to work with the official navigator/fold, is deferred to a future version (source and historical screenshots retained).
 4. **Fold retry notices too (issue #8)**: the host renders a retried model request as a `model-retry` row ("已重试模型请求"), which was not folded before. Since this version `model-retry` is treated as process noise and folded together with thinking/tool calls.
+
+### 0.2.7 (released, current) — Settings API backward compatibility
+
+1. **Settings registration auto-adapts**: the host chooses the right API per DSH version — `installSection` on 0.1.2+, `register` on 0.1.0-rc.7 / 0.1.1-rc.x — so the same plugin loads and registers its settings toggles across **DSH 0.1.0-rc.7 → 0.1.2-rc.1** (0.2.6 relied on the 0.1.2 `installSection`, which made old DSH report "Failed to load plugins").
+2. **Left rail**: still conflicts with the official feature and depends on `react-dom`; remains paused (this compatibility change does not restore it).
 
 ### Next (candidates)
 
