@@ -22,20 +22,24 @@ export interface Config {
   navigator?: boolean
   /** 页面空闲时逐步加载更早历史；检测到性能压力时自动暂停。 */
   autoLoad?: boolean
-  /** 定位条默认色色系：auto（优先宿主淡色文字色，对比不足自动换纠偏灰）/ gray / black / white / blue / violet / cyan / green / orange / red。 */
+  /** 定位条默认色模式：auto（优先宿主淡色文字色，对比不足自动换纠偏灰）/ custom（用 navColorCustom）；gray…red 为历史色系值（兼容保留）。 */
   navColor?: string
-  /** 定位条默认色明度档：l1（极浅）/ l2（浅）/ l3（中）/ l4（深）/ l5（极深），仅 navColor ≠ auto 时生效。 */
+  /** 定位条默认色自定义颜色（navColor = custom 时生效）：任意 CSS 颜色，如 #3b82f6 / rgb(59,130,246) / rgba(59,130,246,0.85)。 */
+  navColorCustom?: string
+  /** 定位条默认色历史明度档：l1…l5，仅 navColor 为历史色系值时生效（兼容保留）。 */
   navColorLight?: string
-  /** 定位条强调色色系：auto（跟随主题品牌色）/ gray / black / white / blue / violet / cyan / green / orange / red。 */
+  /** 定位条强调色模式：auto（跟随主题品牌色）/ custom（用 navAccentCustom）；gray…red 为历史色系值（兼容保留）。 */
   navAccent?: string
-  /** 定位条强调色明度档：l1（极浅）/ l2（浅）/ l3（中）/ l4（深）/ l5（极深），仅 navAccent ≠ auto 时生效。 */
+  /** 定位条强调色自定义颜色（navAccent = custom 时生效）：任意 CSS 颜色。 */
+  navAccentCustom?: string
+  /** 定位条强调色历史明度档：l1…l5，仅 navAccent 为历史色系值时生效（兼容保留）。 */
   navAccentLight?: string
 }
 
-/** 定位条默认色色系枚举。 */
-export const NAV_HUE_KEYS = ['auto', 'gray', 'black', 'white', 'blue', 'violet', 'cyan', 'green', 'orange', 'red'] as const
-/** 定位条强调色色系枚举。 */
-export const NAV_ACCENT_KEYS = ['auto', 'gray', 'black', 'white', 'blue', 'violet', 'cyan', 'green', 'orange', 'red'] as const
+/** 定位条默认色模式枚举（auto / custom；gray…red 为历史色系值，兼容保留）。 */
+export const NAV_HUE_KEYS = ['auto', 'custom', 'gray', 'black', 'white', 'blue', 'violet', 'cyan', 'green', 'orange', 'red'] as const
+/** 定位条强调色模式枚举（auto / custom；gray…red 为历史色系值，兼容保留）。 */
+export const NAV_ACCENT_KEYS = ['auto', 'custom', 'gray', 'black', 'white', 'blue', 'violet', 'cyan', 'green', 'orange', 'red'] as const
 /** 定位条明度档枚举。 */
 export const NAV_LIGHT_KEYS = ['l1', 'l2', 'l3', 'l4', 'l5'] as const
 
@@ -45,8 +49,10 @@ export const Config: z<Config> = z.object({
   navigator: z.boolean().default(false),
   autoLoad: z.boolean().default(false),
   navColor: z.union(NAV_HUE_KEYS).default('auto'),
+  navColorCustom: z.string().default(''),
   navColorLight: z.union(NAV_LIGHT_KEYS).default('l3'),
   navAccent: z.union(NAV_ACCENT_KEYS).default('auto'),
+  navAccentCustom: z.string().default(''),
   navAccentLight: z.union(NAV_LIGHT_KEYS).default('l3'),
 })
 

@@ -28,7 +28,7 @@ In multi-task sessions, thoughts, tool calls, intermediate text and final summar
 | --- | --- |
 | 🗂 Auto-fold | Completed turns fold away thinking (Think), tool calls and intermediate text, keeping only the final summary; the control bar shows "N steps" and timing (duration / first token / rate) |
 | ➖ Divider | A solid line between thinking and prose — one glance separates "process" from "conclusion" |
-| 📍 Left-edge Navigation Rail (Adaptive) | **Available on old DSH (0.1.0-rc.7 ~ 0.1.1-rc.x, no official right TurnNavigator)** (navigator on); **paused on DSH 0.1.2+** (official-feature conflict + `react-dom`). Historical capability: fixed-height Canvas minimap mapping any turn count; fish-eye hover, drag preview, click-to-jump, current-turn highlight; color auto-adapts or manual `hue × lightness`, accent independently configurable |
+| 📍 Left-edge Navigation Rail (Adaptive) | **Available on old DSH (0.1.0-rc.7 ~ 0.1.1-rc.x, no official right TurnNavigator)** (navigator on); **paused on DSH 0.1.2+** (official-feature conflict + `react-dom`). Historical capability: fixed-height Canvas minimap mapping any turn count; fish-eye hover, drag preview, click-to-jump, current-turn highlight; color auto-adapts, or custom via a color picker (HEX/RGB input + alpha) |
 | ⬆ Smart earlier-history load | Gradually loads older records while the page is idle; pauses automatically when the page's responsiveness drops, keeping long sessions smooth; manual load still available |
 | 📤 One-click issue report | Generates a diagnostic report (version / browser / performance / anomaly detection / symptom tags) and opens a pre-filled GitHub issue — title and body included, zero manual writing |
 
@@ -180,7 +180,7 @@ Expand the **dsh-tidychat** card in "Settings → Plugin Configuration":
 - **Thinking ↔ text divider**: solid line between the thinking row and body text.
 - **Left-edge navigation rail**: thin rail on the left edge; hover shows summary, click jumps to the message.
 - **Smart earlier-history load**: gradually loads older records while idle; pauses when responsiveness drops; manual load remains available.
-- **Colors (advanced, collapsible)**: two groups, each a `hue × lightness` orthogonal config. **Default color** auto = host muted label, corrective gray when contrast vs the chat background is insufficient (light on dark, dark on light); manual hues: gray/black/white/blue/violet/cyan/green/orange/red with lightness l1 (lightest) → l5 (deepest). **Accent** controls the current + hover/jump-target turn highlight; auto (default) = theme brand color (`--dsw-alias-state-business-primary`).
+- **Colors (advanced, collapsible)**: **default color** and **accent** each offer auto / custom. **Auto**: the default color uses the host muted label, switching to a corrective gray when contrast vs the chat background is insufficient; the accent follows the theme brand color (`--dsw-alias-state-business-primary`). **Custom**: pick any color with the color picker (continuous), or type an exact HEX / `rgb()` / `rgba()` value, plus an alpha slider. The **accent** drives the current + hover turn highlight.
 
 ## 🔧 How it works
 
