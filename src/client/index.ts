@@ -557,6 +557,14 @@ export function apply(ctx: any): void {
     let hiddenContext = 0
     const all = scopedRows('[data-chat-anchor-key]')
 
+    // 0) 清理上一轮的折叠标记，再由本轮分类重新打（issue #12）。
+    // 原因：applyFold 只遍历「本轮」的 whole/inline 列表。若某行从 whole 变成 inline/可见，
+    // 旧标记不会被移除，该行会一直被 CSS 隐藏（opacity:0; height:0）直到刷新页面。
+    // 先清后打都在同一个 JS 任务内完成，浏览器只在任务结束后绘制，因此不会闪烁；
+    // 同时保证「关闭 fold 开关」后，先前被折叠的行会立即恢复显示。
+    for (const el of scopedRows('[data-tidychat-folded]')) el.removeAttribute('data-tidychat-folded')
+    for (const el of scopedRows('[data-tidychat-folded-inline]')) el.removeAttribute('data-tidychat-folded-inline')
+
     // 1) 行内思考↔文字分隔线（独立开关 divider）；折叠时统一由 applyFold 处理，避免与折叠态冲突。
     if (config.divider && !config.fold) {
       for (const row of all) {
