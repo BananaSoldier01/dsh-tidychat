@@ -29,31 +29,63 @@ const CSS = `
   color: transparent;
   user-select: none;
 }
+/* 行内分隔线（展开时）：用思考芯片的 ::after 画，React 重渲染不会清掉 CSS 伪元素。 */
+[data-variant="think"][data-tidychat-divider-answer]::after {
+  content: '';
+  display: block;
+  border-top: 1px solid var(--dsw-alias-border-l2, rgba(96,96,96,0.85));
+  opacity: 0.95;
+  margin: 8px 0 8px 22px;
+  height: 0;
+  overflow: hidden;
+  color: transparent;
+  user-select: none;
+}
+[data-tidychat-answer-divider] {
+  border-top: 1px solid var(--dsw-alias-border-l2, rgba(96,96,96,0.85));
+  opacity: 0.95;
+  margin: 10px 8px;
+  height: 0;
+  overflow: hidden;
+  color: transparent;
+  user-select: none;
+}
 [data-tidychat-divider-block] {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  margin: 10px 8px 8px 8px;
+  cursor: pointer;
+}
+.tidychat-ctl-head {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: 14px 8px 8px 8px;
 }
 .tidychat-ctl-label {
-  font-size: 11px;
+  font-size: 14px;
   color: var(--dsw-alias-label-secondary, #666);
   white-space: nowrap;
   flex: none;
 }
 .tidychat-ctl-line {
-  flex: 1;
-  border-top: 1px solid var(--dsw-alias-border-l2, rgba(128,128,128,0.55));
+  width: 100%;
+  border-top: 1px solid var(--dsw-alias-border-l2, rgba(96,96,96,0.8));
+  opacity: 0.9;
+  margin-top: 2px;
 }
 .tidychat-ctl-btn {
-  font-size: 11px;
+  font-size: 14px;
+  line-height: 1;
   cursor: pointer;
-  border: 1px solid var(--dsw-alias-border-l2, rgba(128,128,128,0.4));
+  border: none;
   background: transparent;
-  color: var(--dsw-alias-label-primary, #222);
-  border-radius: 6px;
-  padding: 1px 8px;
+  color: var(--dsw-alias-label-secondary, #666);
+  border-radius: 4px;
+  padding: 0 4px;
   flex: none;
+  transition: transform .18s ease;
 }
 .tidychat-ctl-btn:hover {
   background: var(--dsw-alias-interactive-bg-hover, rgba(127,127,127,0.1));
@@ -65,7 +97,13 @@ const CSS = `
   white-space: nowrap;
 }
 [data-tidychat-folded], [data-tidychat-folded-inline] {
-  display: none !important;
+  opacity: 0;
+  height: 0 !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden;
+  transition: opacity .18s ease, height .18s ease, margin .18s ease, padding .18s ease;
 }
 .tidychat-nav-rail {
   position: fixed;
@@ -80,7 +118,11 @@ const CSS = `
   cursor: pointer;
   touch-action: none;
 }
-.tidychat-nav-tip {
+/* 双类名 + !important：泡泡挂载在顶栏 header 内，部分样式主题（如 maid-atelier 换肤）会写
+   「header 内所有 nav/span/button/a/div」这类大范围 color:inherit 规则，优先级约 (0,3,2)，
+   单类名声明 (0,1,0) 必败，导致文字继承主题顶栏的浅色、落在浅色泡泡上不可读。
+   变量链保留：皮肤仍可通过 --tidychat-nav-tip-text / --tidychat-nav-tip-head 定制。 */
+.tidychat-nav-tip.tidychat-nav-tip {
   position: fixed;
   z-index: 41;
   pointer-events: none;
@@ -92,11 +134,11 @@ const CSS = `
   padding: 6px 10px;
   font-size: 12px;
   line-height: 1.5;
-  color: var(--tidychat-nav-tip-text, var(--dsw-alias-label-primary, #222));
+  color: var(--tidychat-nav-tip-text, var(--dsw-alias-label-primary, #222)) !important;
   overflow-wrap: anywhere; /* 摘要含长代码/长串时在框内折行，不撑破卡片 */
 }
 .tidychat-nav-tip-head {
-  color: var(--tidychat-nav-tip-head, var(--dsw-alias-label-secondary, #666));
+  color: var(--tidychat-nav-tip-head, var(--dsw-alias-label-secondary, #666)) !important;
   font-size: 11px;
   margin-bottom: 2px;
 }
@@ -303,6 +345,67 @@ const CSS = `
   border: 1px solid rgba(128,128,128,0.35);
   flex: none;
 }
+/* 调色盘：原生取色器（无极调色）+ HEX/RGB 文本 + 透明度滑杆 */
+.tidychat-picker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+.tidychat-color-input {
+  appearance: none;
+  width: 34px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--dsw-alias-border-l2, rgba(128,128,128,0.4));
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  flex: none;
+}
+.tidychat-color-input::-webkit-color-swatch-wrapper { padding: 2px; }
+.tidychat-color-input::-webkit-color-swatch { border: none; border-radius: 4px; }
+.tidychat-hex-input {
+  appearance: none;
+  flex: 1 1 140px;
+  min-width: 110px;
+  font-size: 12px;
+  font-family: var(--ds-font-family-code, monospace);
+  color: var(--dsw-alias-label-primary, #222);
+  background: var(--dsw-alias-bg-layer-2, rgba(127,127,127,0.08));
+  border: 1px solid var(--dsw-alias-border-l2, rgba(128,128,128,0.4));
+  border-radius: 6px;
+  padding: 4px 8px;
+}
+.tidychat-hex-input:focus {
+  outline: 1.5px solid var(--dsw-alias-button-info-fill, #3b82f6);
+  outline-offset: 1px;
+}
+.tidychat-alpha-input {
+  appearance: none;
+  flex: 1 1 90px;
+  min-width: 80px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--dsw-alias-border-l2, rgba(128,128,128,0.4));
+  cursor: pointer;
+}
+.tidychat-alpha-input::-webkit-slider-thumb {
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--dsw-alias-state-business-primary, #3b82f6);
+  border: none;
+}
+.tidychat-alpha-label {
+  font-size: 12px;
+  color: var(--dsw-alias-label-tertiary, #999);
+  min-width: 34px;
+  text-align: right;
+  flex: none;
+}
 .tidychat-switch {
   appearance: none;
   border: none;
@@ -447,7 +550,7 @@ export function apply(ctx: any): void {
   }
 
   // 设置：tidychat 命名空间，四个开关 + 定位条配色（默认色 auto 尊重主题 + 强调色 auto 跟随主题品牌色）；读不到 settings 服务时全开。
-  const config = { fold: true, divider: true, navigator: true, autoLoad: true, navColor: 'auto', navColorLight: 'l3', navAccent: 'auto', navAccentLight: 'l3', navSide: 'left', navStyle: 'bar' }
+  const config = { fold: true, divider: true, navigator: true, autoLoad: true, navColor: 'auto', navColorCustom: '', navColorLight: 'l3', navAccent: 'auto', navAccentCustom: '', navAccentLight: 'l3', navSide: 'left', navStyle: 'bar' }
   let settingsScope: any = null
   const settingsFace = ctx.get('webUiSettings') ?? ctx.get('settingsScope')
   if (settingsFace !== undefined && typeof settingsFace.bind === 'function') {
@@ -483,8 +586,16 @@ export function apply(ctx: any): void {
     let hiddenContext = 0
     const all = scopedRows('[data-chat-anchor-key]')
 
-    // 1) 行内思考↔文字分隔线（独立开关 divider）
-    if (config.divider) {
+    // 0) 清理上一轮的折叠标记，再由本轮分类重新打（issue #12）。
+    // 原因：applyFold 只遍历「本轮」的 whole/inline 列表。若某行从 whole 变成 inline/可见，
+    // 旧标记不会被移除，该行会一直被 CSS 隐藏（opacity:0; height:0）直到刷新页面。
+    // 先清后打都在同一个 JS 任务内完成，浏览器只在任务结束后绘制，因此不会闪烁；
+    // 同时保证「关闭 fold 开关」后，先前被折叠的行会立即恢复显示。
+    for (const el of scopedRows('[data-tidychat-folded]')) el.removeAttribute('data-tidychat-folded')
+    for (const el of scopedRows('[data-tidychat-folded-inline]')) el.removeAttribute('data-tidychat-folded-inline')
+
+    // 1) 行内思考↔文字分隔线（独立开关 divider）；折叠时统一由 applyFold 处理，避免与折叠态冲突。
+    if (config.divider && !config.fold) {
       for (const row of all) {
         const anchor = row.getAttribute('data-chat-anchor-key') || ''
         if (anchor.indexOf('14:assistant-step') !== 0) continue
@@ -505,90 +616,153 @@ export function apply(ctx: any): void {
       }
     }
 
-    // 2) 折叠（独立开关 fold，含 turn 分组 + 控制条 + 上下文注入行隐藏）
+    // 2) 折叠（独立开关 fold）：只折叠「思考 + 工具调用」，保留用户提问与真正的答复正文。
     if (config.fold) {
-      let currentTurn: any = null
-      let pendingLeads: Element[] = []
-      const turns: any[] = []
-      for (const row of all) {
+      interface TurnGroup { rows: Element[]; tail: Element | null; whole: Element[]; inline: Array<{ row: Element; think: Element }>; answerRow: Element | null }
+      const byTurn = new Map<number, TurnGroup>()
+      // 旧版 DSH（0.1.0-rc.7 ~ 0.1.1-rc.x）的聊天 DOM 没有 data-chat-turn（0.1.2+ 的 dsh-client-ui-chat 才输出）。
+      // 这里做兼容回退：有 data-chat-turn 走新逻辑；没有则按 v0.2.5 的方式从 data-chat-anchor-key 解析 turn，
+      // 并顺序沿用当前 turn（tool-call / turn-tail 等行没有 info），遇到 user 行重置为 null。
+      let fallbackTurn: number | null = null
+      const turnOf = (row: Element): number | null => {
+        // 新 DOM（0.1.2+）：直接读 data-chat-turn。
+        const t = row.getAttribute('data-chat-turn')
+        if (t !== null) {
+          const n = Number(t)
+          return Number.isFinite(n) ? n : null
+        }
+        // 旧 DOM 回退：user 行开启新 turn；assistant-step 从 anchor 解析；其余行沿用当前 turn。
+        const kind = row.getAttribute('data-chat-flow-kind') || ''
+        if (kind === 'user') {
+          fallbackTurn = null
+          return null
+        }
         const anchor = row.getAttribute('data-chat-anchor-key') || ''
-        const kind = row.getAttribute('data-chat-flow-kind') || 'null'
         const m = /^14:assistant-step(\d+):/.exec(anchor)
         if (m !== null) {
-          const t = Number(m[1])
-          if (currentTurn === null || currentTurn.turn !== t) {
-            currentTurn = { turn: t, steps: [] as Element[], toolCalls: 0, hasTail: false, rows: [] as Element[], timing: '' }
-            for (const lead of pendingLeads) currentTurn.rows.push(lead)
-            pendingLeads = []
-            turns.push(currentTurn)
+          fallbackTurn = Number(m[1])
+          return fallbackTurn
+        }
+        return fallbackTurn
+      }
+      // 判断某行里除了「思考/工具过程」之外是否还有真正的答复正文（文本不在 think / disclosure 内）。
+      const hasAnswerOutsideThink = (row: Element, think: Element): boolean => {
+        const walker = document.createTreeWalker(row, NodeFilter.SHOW_TEXT)
+        let node: Node | null
+        while ((node = walker.nextNode()) !== null) {
+          const txt = (node.textContent || '').replace(/\s+/g, '')
+          if (txt === '') continue
+          const el = node.parentElement
+          if (el === null) continue
+          if (el.closest('[data-variant="think"]') !== null) continue
+          if (el.closest('[data-disclosure-row]') !== null) continue
+          return true
+        }
+        return false
+      }
+      for (const row of all) {
+        const turn = turnOf(row)
+        if (turn === null) continue
+        let g = byTurn.get(turn)
+        if (g === undefined) { g = { rows: [], tail: null, whole: [], inline: [], answerRow: null }; byTurn.set(turn, g) }
+        g.rows.push(row)
+        const kind = row.getAttribute('data-chat-flow-kind') || ''
+        if (kind === 'turn-tail') {
+          g.tail = row
+        } else if (kind === 'tool-call') {
+          g.whole.push(row)
+        } else if (kind === 'model-retry') {
+          // DSH 把被重试的模型请求渲染为 data-chat-flow-kind="model-retry"（“已重试模型请求”状态行）。
+          // 它属于过程噪音、无正式答复需要保留，随思考/工具调用一起折叠（issue #8）。
+          g.whole.push(row)
+        } else if (kind === 'assistant-step') {
+          const think = row.querySelector('[data-variant="think"]')
+          if (think !== null) {
+            if (hasAnswerOutsideThink(row, think)) g.inline.push({ row, think })
+            else g.whole.push(row)
           }
-          currentTurn.steps.push(row)
-          currentTurn.rows.push(row)
-        } else if (anchor.indexOf('9:tool-call') === 0) {
-          if (currentTurn !== null) { currentTurn.toolCalls += 1; currentTurn.rows.push(row) }
-        } else if (anchor.indexOf('9:turn-tail') === 0) {
-          if (currentTurn !== null) { currentTurn.hasTail = true; currentTurn.timing = cleanTiming(row.textContent || '') }
-        } else if (kind === 'user') {
-          currentTurn = null
-          pendingLeads = []
-        } else if (kind === 'context') {
-          pendingLeads.push(row)
+          // 无 think 的 assistant-step = 纯答复正文，保持可见，不进折叠列表。
         }
       }
 
       const coveredRows = new Set<Element>()
-      for (const turn of turns) {
-        if (!turn.hasTail) continue
-        let finalRow: Element | null = null
-        for (let i = turn.steps.length - 1; i >= 0; i--) {
-          if (hasTextInStep(turn.steps[i])) { finalRow = turn.steps[i]; break }
+      for (const [turn, g] of byTurn) {
+        if (g.tail === null) continue
+        if (g.whole.length === 0 && g.inline.length === 0) continue
+        // 控制条插在「第一条要被折叠的过程行」之前（即在用户提问之后、过程之上）。
+        const firstProcess = g.rows.find((r) => g.whole.includes(r) || g.inline.some((x) => x.row === r))
+        if (firstProcess === undefined || firstProcess.parentElement === null) continue
+        for (const row of g.whole) coveredRows.add(row)
+
+        // 分隔线位置：在「最后一条过程行」之后的第一个纯答复行（assistant-step 且不在 whole/inline 中）。
+        let lastProcessIdx = -1
+        for (let i = 0; i < g.rows.length; i++) {
+          const r = g.rows[i]
+          if (g.whole.includes(r) || g.inline.some((x) => x.row === r)) lastProcessIdx = i
         }
-        const processRows: Element[] = []
-        if (finalRow === null) {
-          for (const row of turn.rows) processRows.push(row)
-        } else {
-          for (const row of turn.rows) {
-            if (row === finalRow) break
-            processRows.push(row)
-          }
+        let answerRow: Element | null = null
+        for (let i = lastProcessIdx + 1; i < g.rows.length; i++) {
+          const r = g.rows[i]
+          const kind = r.getAttribute('data-chat-flow-kind') || ''
+          if (kind === 'assistant-step' && !g.whole.includes(r) && !g.inline.some((x) => x.row === r)) { answerRow = r; break }
         }
-        const finalThink = finalRow === null ? null : finalRow.querySelector('[data-variant="think"]')
-        if (processRows.length === 0 && finalThink === null) continue
-        for (const row of processRows) coveredRows.add(row)
-        const firstRow = turn.rows[0]
-        if (firstRow === undefined || firstRow.parentElement === null) continue
+        // 注意：若没有独立的纯答复行（正式回复内联在思考行里），不加块级分隔线，
+        // 改由 applyFold 在每个内联行的“思考芯片 ↔ 回复正文”之间插入行内分隔线。
 
         let ctl: HTMLElement | null = null
-        const prev = firstRow.previousElementSibling as HTMLElement | null
-        if (prev !== null && prev.hasAttribute && prev.hasAttribute('data-tidychat-divider-block') && prev.getAttribute('data-tidychat-turn') === String(turn.turn)) {
-          ctl = prev
+        // 优先复用已存在的同回合控制条（按 data-tidychat-turn 找），避免 observer 重跑时不断重插。
+        const parentEl = firstProcess.parentElement
+        const existingCtl = parentEl.querySelector<HTMLElement>('[data-tidychat-divider-block][data-tidychat-turn="' + String(turn) + '"]')
+        if (existingCtl !== null) {
+          ctl = existingCtl
+          if (existingCtl.nextElementSibling !== firstProcess) parentEl.insertBefore(existingCtl, firstProcess)
         } else {
           ctl = document.createElement('div')
           ctl.setAttribute('data-tidychat-divider-block', '1')
-          ctl.setAttribute('data-tidychat-turn', String(turn.turn))
+          ctl.setAttribute('data-tidychat-turn', String(turn))
           ctl.setAttribute('role', 'separator')
+          const head = document.createElement('div')
+          head.className = 'tidychat-ctl-head'
           const label = document.createElement('span')
           label.className = 'tidychat-ctl-label'
-          const line = document.createElement('div')
-          line.className = 'tidychat-ctl-line'
           const btn = document.createElement('button')
           btn.className = 'tidychat-ctl-btn'
           btn.setAttribute('type', 'button')
-          ctl.appendChild(label)
+          // Codex 同款细描边 chevron（收起朝右、展开朝下，由 transform 旋转驱动）。
+          const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+          svg.setAttribute('width', '12')
+          svg.setAttribute('height', '12')
+          svg.setAttribute('viewBox', '0 0 12 12')
+          svg.setAttribute('fill', 'none')
+          const chevPath = document.createElementNS('http://www.w3.org/2000/svg', 'path')
+          chevPath.setAttribute('d', 'M3 4.5 L6 7.5 L9 4.5')
+          chevPath.setAttribute('stroke', 'currentColor')
+          chevPath.setAttribute('stroke-width', '1.5')
+          chevPath.setAttribute('stroke-linecap', 'round')
+          chevPath.setAttribute('stroke-linejoin', 'round')
+          svg.appendChild(chevPath)
+          btn.appendChild(svg)
+          head.appendChild(label)
+          head.appendChild(btn)
+          ctl.appendChild(head)
+          const line = document.createElement('div')
+          line.className = 'tidychat-ctl-line'
           ctl.appendChild(line)
-          ctl.appendChild(btn)
-          btn.addEventListener('click', () => {
-            const cur = foldGet(turn.turn)
-            applyFold(turn, processRows, finalThink, ctl, !cur)
+          // Codex：整条「用时」区域可点击切换折叠/展开。
+          ctl.addEventListener('click', () => {
+            const cur = foldGet(turn)
+            const timing = g.tail !== null ? cleanTiming(g.tail.textContent || '') : ''
+            applyFold(turn, g.whole, g.inline, ctl, !cur, answerRow, timing)
           })
-          firstRow.parentElement!.insertBefore(ctl, firstRow)
+          firstProcess.parentElement!.insertBefore(ctl, firstProcess)
         }
-        const folded = foldGet(turn.turn)
-        applyFold(turn, processRows, finalThink, ctl, folded)
+        const folded = foldGet(turn)
+        const timing = g.tail !== null ? cleanTiming(g.tail.textContent || '') : ''
+        applyFold(turn, g.whole, g.inline, ctl, folded, answerRow, timing)
         if (folded) foldedCount += 1
       }
 
-      // 未覆盖的上下文注入行强制隐藏
+      // 未覆盖的上下文注入行强制隐藏（保持原行为）
       for (const row of all) {
         if (row.getAttribute('data-chat-flow-kind') !== 'context') continue
         if (coveredRows.has(row)) continue
@@ -601,28 +775,51 @@ export function apply(ctx: any): void {
     return { inline, folded: foldedCount, hiddenContext }
   }
 
-  const applyFold = (turn: any, processRows: Element[], finalThink: Element | null, ctl: HTMLElement | null, folded: boolean): void => {
-    foldSet(turn.turn, folded)
-    for (const row of processRows) {
+  const applyFold = (turn: number, wholeRows: Element[], inlineRows: Array<{ row: Element; think: Element }>, ctl: HTMLElement | null, folded: boolean, answerRow: Element | null, timing: string): void => {
+    foldSet(turn, folded)
+    for (const row of wholeRows) {
       if (folded) row.setAttribute('data-tidychat-folded', '1')
       else row.removeAttribute('data-tidychat-folded')
     }
-    if (finalThink !== null) {
-      if (folded) finalThink.setAttribute('data-tidychat-folded-inline', '1')
-      else finalThink.removeAttribute('data-tidychat-folded-inline')
+    for (const { think } of inlineRows) {
+      if (folded) think.setAttribute('data-tidychat-folded-inline', '1')
+      else think.removeAttribute('data-tidychat-folded-inline')
+    }
+    // 行内分隔线：展开时给「思考芯片」加 data-tidychat-divider-answer，用 CSS ::after 画线（React 重渲染不会清掉）；收起时移除。
+    if (config.divider) {
+      for (const { think } of inlineRows) {
+        if (!folded) think.setAttribute('data-tidychat-divider-answer', '1')
+        else think.removeAttribute('data-tidychat-divider-answer')
+      }
+    }
+    // 「思考/代码」与「回复正文」之间的分隔线：**仅实际展开时显示**（收起时用时下方的线已够分隔，避免两条线叠在一起）。
+    if (answerRow !== null && answerRow.parentElement !== null) {
+      const prev = answerRow.previousElementSibling as HTMLElement | null
+      const isOurs = (el: Element | null): boolean => el instanceof HTMLElement && el.hasAttribute('data-tidychat-answer-divider')
+      if (!folded) {
+        if (!isOurs(prev)) {
+          const boundary = document.createElement('div')
+          boundary.setAttribute('data-tidychat-answer-divider', '1')
+          boundary.setAttribute('role', 'separator')
+          answerRow.parentElement.insertBefore(boundary, answerRow)
+        }
+      } else if (isOurs(prev)) {
+        (prev as HTMLElement).remove()
+      }
     }
     if (ctl !== null) {
       const label = ctl.querySelector('.tidychat-ctl-label')
-      const btn = ctl.querySelector('.tidychat-ctl-btn')
-      const thinkCount = processRows.filter((r) => (r.getAttribute('data-chat-anchor-key') || '').indexOf('14:assistant-step') === 0).length + (finalThink !== null ? 1 : 0)
-      const totalSteps = thinkCount + turn.toolCalls
-      const parts = [folded ? ('过程 ' + totalSteps + ' 步') : ('已展开 ' + totalSteps + ' 步')]
-      if (turn.timing !== '') parts.push(turn.timing)
-      const labelText = parts.join(' · ')
-      const btnText = folded ? '展开' : '收起'
+      const btn = ctl.querySelector<HTMLElement>('.tidychat-ctl-btn')
+      const totalSteps = wholeRows.length + inlineRows.length
+      // Codex 式：优先显示「用时 X」；箭头固定 ▾，折叠时旋转 -90°（朝右）、展开时 0°（朝下），带过渡。
+      const labelText = timing !== '' ? timing : (folded ? ('过程 ' + totalSteps + ' 步') : ('已展开 ' + totalSteps + ' 步'))
       // 只在文案真正变化时才写入，避免相同 textContent 反复触发 DOM mutation
       if (label !== null && label.textContent !== labelText) label.textContent = labelText
-      if (btn !== null && btn.textContent !== btnText) btn.textContent = btnText
+      if (btn !== null) {
+        // 只驱动 SVG chevron 的旋转：折叠 -90°（朝右）、展开 0°（朝下）。
+        const rot = folded ? 'rotate(-90deg)' : 'rotate(0deg)'
+        if (btn.style.transform !== rot) btn.style.transform = rot
+      }
     }
   }
 
@@ -1002,25 +1199,34 @@ export function apply(ctx: any): void {
     const lo = Math.min(la, lb)
     return (hi + 0.05) / (lo + 0.05)
   }
+  // 自定义色：只接受能被 parseRgba 解析的颜色（#rgb/#rrggbb/#rrggbbaa、rgb()/rgba()），否则回退。
+  const validColor = (raw: unknown, fallback: string): string => {
+    if (typeof raw !== 'string') return fallback
+    const s = raw.trim()
+    if (s === '') return fallback
+    return parseRgba(s) !== null ? s : fallback
+  }
   const resolveNavColors = (): { bar: string; hot: string } => {
     const cs = getComputedStyle(document.documentElement)
     const brand = cs.getPropertyValue('--dsw-alias-state-business-primary').trim() || '#3b82f6'
     const caption = cs.getPropertyValue('--dsw-alias-label-caption').trim() || 'rgba(127,127,127,0.5)'
     // 默认色 auto = 尊重主题：优先用宿主 label-caption，与实际背景对比不足时才切纠偏灰
-    let bar: string
-    if ((config.navColor ?? 'auto') === 'auto') {
+    const autoBar = (): string => {
       const captionRgb = parseRgb(caption)
       const bgRgb = findBackgroundRgb()
-      if (captionRgb !== null && bgRgb !== null && contrastRatio(captionRgb, bgRgb) >= 3) {
-        bar = caption
-      } else {
-        bar = isDarkBackground() ? 'rgba(226,226,226,0.85)' : 'rgba(80,80,80,0.78)'
-      }
-    } else {
-      bar = hueColor(config.navColor, config.navColorLight, caption)
+      if (captionRgb !== null && bgRgb !== null && contrastRatio(captionRgb, bgRgb) >= 3) return caption
+      return isDarkBackground() ? 'rgba(226,226,226,0.85)' : 'rgba(80,80,80,0.78)'
     }
-    // 强调色：auto（默认）= 跟随主题品牌色；手动选色才覆盖
-    const hot = (config.navAccent ?? 'auto') === 'auto' ? brand : hueColor(config.navAccent, config.navAccentLight, brand)
+    // 默认色：auto / custom（调色盘选色）/ 历史色系（gray…red × 明度）
+    const colorMode = config.navColor ?? 'auto'
+    const bar = colorMode === 'auto' ? autoBar()
+      : colorMode === 'custom' ? validColor(config.navColorCustom, autoBar())
+      : hueColor(colorMode, config.navColorLight, caption)
+    // 强调色：auto = 跟随主题品牌色；custom = 调色盘选色；历史色系 = 色系 × 明度
+    const accentMode = config.navAccent ?? 'auto'
+    const hot = accentMode === 'auto' ? brand
+      : accentMode === 'custom' ? validColor(config.navAccentCustom, brand)
+      : hueColor(accentMode, config.navAccentLight, brand)
     return { bar, hot }
   }
   // 保守兜底（仅提示卡）：只有当浮层背景「不透明」（alpha ≥ 0.85）且 label token 与背景
@@ -1028,7 +1234,9 @@ export function apply(ctx: any): void {
   // 这样官方深色（半透明白玻璃）与样式主题保持 token 跟随，仅异常的不透明皮肤被纠正。
   const applyTipContrast = (): void => {
     const root = document.documentElement
-    const cs = getComputedStyle(document.documentElement)
+    // 主题 token 定义在 body 作用域（body / body[data-ds-dark-theme]），
+    // 从 html 读 computed 值永远是空串，会拿 '#222' 兜底值代替真实 token 测对比度。
+    const cs = getComputedStyle(document.body)
     const tipBg = parseRgba(cs.getPropertyValue('--dsw-alias-bg-layer-3').trim())
     const update = (key: string, token: string): void => {
       if (tipBg === null || tipBg[3] < 0.85) { root.style.removeProperty(key); return }
@@ -1058,11 +1266,13 @@ export function apply(ctx: any): void {
         if (snap !== null && snap !== undefined && snap.status === 'ready' && snap.value) {
           config.fold = snap.value.fold ?? true
           config.divider = snap.value.divider ?? true
-          config.navigator = snap.value.navigator ?? true
-          config.autoLoad = snap.value.autoLoad ?? true
+          config.navigator = snap.value.navigator ?? false
+          config.autoLoad = snap.value.autoLoad ?? false
           config.navColor = typeof snap.value.navColor === 'string' ? snap.value.navColor : 'auto'
+          config.navColorCustom = typeof snap.value.navColorCustom === 'string' ? snap.value.navColorCustom : ''
           config.navColorLight = typeof snap.value.navColorLight === 'string' ? snap.value.navColorLight : 'l3'
           config.navAccent = typeof snap.value.navAccent === 'string' ? snap.value.navAccent : 'auto'
+          config.navAccentCustom = typeof snap.value.navAccentCustom === 'string' ? snap.value.navAccentCustom : ''
           config.navAccentLight = typeof snap.value.navAccentLight === 'string' ? snap.value.navAccentLight : 'l3'
           config.navSide = snap.value.navSide === 'right' ? 'right' : 'left'
           config.navStyle = snap.value.navStyle === 'dot' ? 'dot' : 'bar'
@@ -1100,7 +1310,12 @@ export function apply(ctx: any): void {
     if (mainObserver !== null && next === mainTarget) return
     if (mainObserver !== null) mainObserver.disconnect()
     mainTarget = next
-    mainObserver = new MutationObserver(() => {
+    mainObserver = new MutationObserver((muts) => {
+      // 只关心“非插件自插”的节点变更；插件自己插入/移动的 data-tidychat-* 节点不触发重扫，
+      // 避免 控制条/分隔线 被 observer 反复重插造成循环。
+      const isTidychatNode = (n: Node): boolean => n instanceof Element && Array.from(n.attributes).some((a) => a.name.startsWith('data-tidychat-'))
+      const relevant = muts.some((m) => [...m.addedNodes, ...m.removedNodes].some((n) => !isTidychatNode(n)))
+      if (!relevant) return
       dirty = true
       if (mainPending !== null) return
       mainPending = setTimeout(() => { mainPending = null; if (!isGovernorBusy()) scan() }, 250)
@@ -1490,7 +1705,7 @@ export function apply(ctx: any): void {
       try { unsub = settingsScope.subscribe(pull) } catch { unsub = () => {} }
       return () => { try { unsub() } catch { /* ignore */ } }
     }, [])
-    const value = (snap !== null && snap !== undefined && snap.value) ? snap.value : { fold: true, divider: true, navigator: true, autoLoad: true, navColor: 'auto', navColorLight: 'l3', navAccent: 'auto', navAccentLight: 'l3', navSide: 'left', navStyle: 'bar', debug: false }
+    const value = (snap !== null && snap !== undefined && snap.value) ? snap.value : { fold: true, divider: true, navigator: true, autoLoad: true, navColor: 'auto', navColorCustom: '', navColorLight: 'l3', navAccent: 'auto', navAccentCustom: '', navAccentLight: 'l3', navSide: 'left', navStyle: 'bar', debug: false }
     const writable = snap !== null && snap !== undefined ? snap.writable : false
     const fields: Array<[string, string, string]> = [
       ['fold', '自动折叠已完成轮次', '隐藏思考、工具调用与中间文字，只保留最终结论，控制条含处理时长。'],
@@ -1522,8 +1737,56 @@ export function apply(ctx: any): void {
           o.label,
         )),
       )
-    const AUTO_OPT: { key: string; label: string; preview: string } = { key: 'auto', label: '自动', preview: 'linear-gradient(135deg, #222 50%, #f2f2f2 50%)' }
-    const ACCENT_AUTO_OPT: { key: string; label: string; preview?: string } = { key: 'auto', label: '自动', preview: 'var(--dsw-alias-state-business-primary, #3b82f6)' }
+    // 调色盘字段：自动 / 自定义（原生取色器无极调色 + HEX/RGB 文本 + 透明度）
+    const hex6Of = (rgb: ReadonlyArray<number>): string =>
+      '#' + rgb.slice(0, 3).map((n) => Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2, '0')).join('')
+    const cssColor = (rgb: ReadonlyArray<number>, a: number): string =>
+      a >= 1
+        ? hex6Of(rgb)
+        : 'rgba(' + Math.round(rgb[0]) + ', ' + Math.round(rgb[1]) + ', ' + Math.round(rgb[2]) + ', ' + (Math.round(a * 1000) / 1000) + ')'
+    const colorField = (label: string, modeField: string, customField: string, mode: string, custom: string, autoPreview: string, hint: string): any => {
+      const customOn = mode === 'custom'
+      const parsed = parseRgba(String(custom ?? ''))
+      const rgb: number[] = parsed === null ? [59, 130, 246] : [parsed[0], parsed[1], parsed[2]]
+      const alpha = parsed === null ? 1 : parsed[3]
+      const swatch = parsed !== null ? cssColor(rgb, alpha) : 'linear-gradient(135deg, #f87171, #60a5fa, #4ade80)'
+      return React.createElement('div', { key: modeField, className: 'tidychat-field' },
+        React.createElement('div', { className: 'tidychat-field-head' },
+          React.createElement('span', { className: 'tidychat-field-label' }, label),
+        ),
+        React.createElement('div', { className: 'tidychat-color-sub' },
+          React.createElement('span', { className: 'tidychat-color-sub-label' }, '模式'),
+          chipRow([
+            { key: 'auto', label: '自动', preview: autoPreview },
+            { key: 'custom', label: '自定义', preview: swatch },
+          ], customOn ? 'custom' : 'auto', (k) => setColor(modeField, k), !writable),
+        ),
+        customOn ? React.createElement('div', { className: 'tidychat-picker' },
+          React.createElement('input', {
+            type: 'color', className: 'tidychat-color-input', value: hex6Of(rgb), disabled: !writable,
+            'aria-label': label + ' 取色',
+            onChange: (e: any) => {
+              const p = parseRgba(String(e.target.value))
+              if (p !== null) setColor(customField, cssColor([p[0], p[1], p[2]], alpha))
+            },
+          }),
+          React.createElement('input', {
+            type: 'text', className: 'tidychat-hex-input', value: String(custom ?? ''), disabled: !writable,
+            placeholder: '#3b82f6 / rgb(59,130,246)', spellCheck: false,
+            'aria-label': label + ' 颜色值',
+            onChange: (e: any) => setColor(customField, String(e.target.value)),
+          }),
+          React.createElement('input', {
+            type: 'range', className: 'tidychat-alpha-input', min: 0, max: 100, step: 1,
+            value: Math.round(alpha * 100), disabled: !writable,
+            'aria-label': label + ' 透明度',
+            onChange: (e: any) => setColor(customField, cssColor(rgb, Number(e.target.value) / 100)),
+          }),
+          React.createElement('span', { className: 'tidychat-alpha-label' }, Math.round(alpha * 100) + '%'),
+        ) : null,
+        React.createElement('p', { className: 'tidychat-field-hint' }, hint),
+      )
+    }
     return React.createElement('li', { className: 'tidychat-card' + (open ? ' tidychat-card-open' : '') },
       React.createElement('button', {
         type: 'button',
@@ -1585,34 +1848,12 @@ export function apply(ctx: any): void {
             ),
           ),
           colorOpen ? React.createElement('div', { className: 'tidychat-group-body' },
-            React.createElement('div', { key: 'navColor', className: 'tidychat-field' },
-              React.createElement('div', { className: 'tidychat-field-head' },
-                React.createElement('span', { className: 'tidychat-field-label' }, '定位条默认色'),
-              ),
-              React.createElement('div', { className: 'tidychat-color-sub' },
-                React.createElement('span', { className: 'tidychat-color-sub-label' }, '色系'),
-                chipRow([AUTO_OPT, ...NAV_HUE_OPTIONS], String(value.navColor ?? 'auto'), (k) => setColor('navColor', k), !writable),
-              ),
-              React.createElement('div', { className: 'tidychat-color-sub' },
-                React.createElement('span', { className: 'tidychat-color-sub-label' }, '明度'),
-                chipRow(NAV_LIGHT_OPTIONS, String(value.navColorLight ?? 'l3'), (k) => setColor('navColorLight', k), !writable || (value.navColor ?? 'auto') === 'auto'),
-              ),
-              React.createElement('p', { className: 'tidychat-field-hint' }, '自动 = 尊重主题：优先用宿主淡色文字色，与背景对比不足时自动换纠偏灰；手动 = 按「色系 × 5 级明度（极浅→极深）」正交着色。'),
-            ),
-            React.createElement('div', { key: 'navAccent', className: 'tidychat-field' },
-              React.createElement('div', { className: 'tidychat-field-head' },
-                React.createElement('span', { className: 'tidychat-field-label' }, '强调色（当前 / 悬停回合）'),
-              ),
-              React.createElement('div', { className: 'tidychat-color-sub' },
-                React.createElement('span', { className: 'tidychat-color-sub-label' }, '色系'),
-                chipRow([ACCENT_AUTO_OPT, ...NAV_HUE_OPTIONS], String(value.navAccent ?? 'auto'), (k) => setColor('navAccent', k), !writable),
-              ),
-              React.createElement('div', { className: 'tidychat-color-sub' },
-                React.createElement('span', { className: 'tidychat-color-sub-label' }, '明度'),
-                chipRow(NAV_LIGHT_OPTIONS, String(value.navAccentLight ?? 'l3'), (k) => setColor('navAccentLight', k), !writable || (value.navAccent ?? 'auto') === 'auto'),
-              ),
-              React.createElement('p', { className: 'tidychat-field-hint' }, '自动 = 跟随主题品牌色；手动 = 当前轮次与悬停 / 导航目标回合以所选强调色高亮。'),
-            ),
+            colorField('定位条默认色', 'navColor', 'navColorCustom', String(value.navColor ?? 'auto'), String(value.navColorCustom ?? ''),
+              'linear-gradient(135deg, #222 50%, #f2f2f2 50%)',
+              '自动 = 尊重主题：优先用宿主淡色文字色，与背景对比不足时自动换纠偏灰；自定义 = 用取色器无极调色，或直接输入 HEX / RGB。'),
+            colorField('强调色（当前 / 悬停回合）', 'navAccent', 'navAccentCustom', String(value.navAccent ?? 'auto'), String(value.navAccentCustom ?? ''),
+              'var(--dsw-alias-state-business-primary, #3b82f6)',
+              '自动 = 跟随主题品牌色；自定义 = 用取色器无极调色，或直接输入 HEX / RGB。当前轮次与悬停回合以该色高亮。'),
           ) : null,
         ),
         React.createElement('div', { key: 'report', className: 'tidychat-report-field' },

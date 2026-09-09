@@ -2,3 +2,5 @@ node_modules/
 *.tsbuildinfo
 lib/*.map
 .DS_Store
+# 本地备忘（不入库）
+MEMO-*.md
