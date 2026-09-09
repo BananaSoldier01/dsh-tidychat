@@ -64,7 +64,7 @@
 dsh plugin --profile web add @bananasoldier01/dsh-tidychat
 
 # 方式 2：从 GitHub 安装（推荐钉版本，可复现）
-dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat.git#v0.2.8
+dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat.git#v0.2.9
 ```
 
 安装后重启 dsh web + 硬刷新（Cmd+Shift+R）。
@@ -78,7 +78,7 @@ dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat
 dsh plugin --profile web update @bananasoldier01/dsh-tidychat
 
 # 方式 B：装的是某个 tag，改钉到新 tag 重新 add
-dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat.git#v0.2.8
+dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat.git#v0.2.9
 ```
 
 更新后同样重启 dsh web + 硬刷新。
@@ -151,10 +151,16 @@ dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat
 1. **settings 注册自动适配**：宿主注册配置时按 DSH 版本自动选用 API——0.1.2+ 用 `installSection`，0.1.0-rc.7 / 0.1.1-rc.x 用 `register`——让同一份插件在 **DSH 0.1.0-rc.7 ~ 0.1.2-rc.1** 都能正常加载并注册设置开关（此前 0.2.6 沿用 0.1.2 的 `installSection`，在旧版 DSH 上会报 “Failed to load plugins”）。
 2. **左缘定位条**：仍与官方新功能冲突、且依赖 `react-dom`，继续暂缓显示（本次兼容不恢复它）。
 
-### 0.2.8（已发布，本次）—— 旧版 DSH（无右缘 TurnNavigator）整套可用
+### 0.2.8（已发布）—— 旧版 DSH（无右缘 TurnNavigator）整套可用
 
 1. **折叠/分隔线兼容回退**：折叠分组在 `data-chat-turn` 缺失（旧版 DSH 0.1.0-rc.7 ~ 0.1.1-rc.x）时，回退到从 `data-chat-anchor-key` 解析 turn 号（v0.2.5 做法），让折叠/分隔线在旧版 DSH 也生效（0.1.2+ 仍走 `data-chat-turn`，行为不变）。
 2. **左缘定位条确认可用**：旧版 DSH 没有官方右缘 TurnNavigator，旧槽 `conversation.session.header.utilities` 存在且被渲染、所需 DOM 锚点均在（0.1.1-rc.2 源码确认）——**旧版 DSH（0.1.0-rc.7 ~ 0.1.1-rc.x）定位条可正常使用**（navigator 开）；DSH 0.1.2+ 因有官方右缘 TurnNavigator 仍暂停。
+
+### 0.2.9（已发布，本次）—— 调色盘配色 + 折叠残留标记修复
+
+1. **配色改为调色盘**：定位条默认色 / 强调色由「色系 × 明度」chip 改为「自动 / 自定义」二选一；自定义 = 原生取色器无极调色 + HEX/`rgb()`/`rgba()` 文本输入 + 透明度滑杆，实时色块预览。host schema 新增 `navColorCustom` / `navAccentCustom`（旧色系值仍兼容解析）。
+2. **修复折叠残留标记（issue #12 疑似根因）**：`applyFold` 只遍历本轮判定要折叠的行，若某行从「整行折叠（whole）」变成「只折叠思考（inline）」，旧的 `data-tidychat-folded` 不会被移除 → 该行被 CSS 永久隐藏（含总结正文），直到刷新页面。现在每轮重算前先统一清理标记再按本轮判定重打（同任务内完成，不闪烁）；同时修复「关闭 fold 开关后先前折叠的行仍隐藏」。
+3. **修复悬停摘要文字色被换肤覆盖**（PR #9，issue #11）：`.tidychat-nav-tip` 双类名 + `!important`，`applyTipContrast()` 的 token 读取源由 `documentElement` 改为 `document.body`（DSH 的 `--dsw-alias-*` token 定义在 body，html 上读不到）。
 
 ### 下一版本（候选）
 

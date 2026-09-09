@@ -64,7 +64,7 @@ Prerequisite: DSH (Web) installed, `pnpm` on PATH.
 dsh plugin --profile web add @bananasoldier01/dsh-tidychat
 
 # Option 2: from GitHub (pin a tag for reproducibility)
-dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat.git#v0.2.8
+dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat.git#v0.2.9
 ```
 
 Restart dsh web + hard refresh (Cmd+Shift+R) after installing.
@@ -78,7 +78,7 @@ The plugin is installed as a profile dependency; updating just re-pulls that dep
 dsh plugin --profile web update @bananasoldier01/dsh-tidychat
 
 # Option B: pinned to a tag — re-add pinned to the new tag
-dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat.git#v0.2.8
+dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat.git#v0.2.9
 ```
 
 Restart dsh web + hard refresh after updating.
@@ -151,10 +151,16 @@ No functional changes — npm package content only: `README.en.md` bundled, `rep
 1. **Settings registration auto-adapts**: the host chooses the right API per DSH version — `installSection` on 0.1.2+, `register` on 0.1.0-rc.7 / 0.1.1-rc.x — so the same plugin loads and registers its settings toggles across **DSH 0.1.0-rc.7 → 0.1.2-rc.1** (0.2.6 relied on the 0.1.2 `installSection`, which made old DSH report "Failed to load plugins").
 2. **Left rail**: still conflicts with the official feature and depends on `react-dom`; remains paused (this compatibility change does not restore it).
 
-### 0.2.8 (released, current) — Full plugin works on old DSH (no right TurnNavigator)
+### 0.2.8 (released) — Full plugin works on old DSH (no right TurnNavigator)
 
 1. **Fold/divider fallback**: when `data-chat-turn` is missing (old DSH 0.1.0-rc.7 ~ 0.1.1-rc.x), the fold grouping falls back to parsing the turn from `data-chat-anchor-key` (v0.2.5's approach), so fold/divider also work on old DSH (0.1.2+ still uses `data-chat-turn`, unchanged).
 2. **Left rail confirmed available**: old DSH has no official right TurnNavigator; the `conversation.session.header.utilities` slot exists and is rendered, and the needed DOM anchors are all present (confirmed from the 0.1.1-rc.2 source) — so the left rail works on **old DSH (0.1.0-rc.7 ~ 0.1.1-rc.x, navigator on)**; it stays paused on DSH 0.1.2+ because of the official right TurnNavigator.
+
+### 0.2.9 (released, current) — Color picker + stale-fold-mark fix
+
+1. **Color picker**: the rail's default color / accent now offer auto / custom instead of the `hue × lightness` chips; custom = native picker (continuous) + HEX/`rgb()`/`rgba()` input + alpha slider, with a live swatch. Host schema gains `navColorCustom` / `navAccentCustom` (legacy hue values still resolve).
+2. **Stale fold mark fix (likely root cause of issue #12)**: `applyFold` only walked the rows it folds *this* pass, so a row that flipped from "fold whole" to "fold think only" kept its old `data-tidychat-folded` and stayed hidden (including the final answer) until a page reload. Each pass now clears the marks first, then re-applies them (same JS task, no flicker). Also fixes hidden rows staying hidden after turning fold off.
+3. **Tooltip text color fix** (PR #9, issue #11): double-class + `!important` on `.tidychat-nav-tip`, and `applyTipContrast()` now reads tokens from `document.body` (DSH defines `--dsw-alias-*` on body, not html).
 
 ### Next (candidates)
 
