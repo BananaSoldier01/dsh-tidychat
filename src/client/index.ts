@@ -1736,7 +1736,7 @@ export function apply(ctx: any): void {
         onClick: () => setOpen(!open),
       },
         React.createElement('span', { className: 'tidychat-card-headtext' },
-          React.createElement('span', { className: 'tidychat-card-name' }, '会话整理'),
+          React.createElement('span', { className: 'tidychat-card-name' }, '会话整理tidychat'),
           React.createElement('span', { className: 'tidychat-card-desc' }, '折叠、分隔线、定位条 —— 把长会话整理成可扫读的结论流'),
         ),
         React.createElement('svg', {
