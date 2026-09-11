@@ -105,6 +105,17 @@ const CSS = `
   overflow: hidden;
   transition: opacity .18s ease, height .18s ease, margin .18s ease, padding .18s ease;
 }
+/* 接管官方右缘消息轨（DSH 0.1.2+ 原生 TurnNavigator）：仅当根元素带
+   data-tidychat-hide-official-nav 时生效（由 applyOfficialNavTakeover 切换）。
+   官方类名是 CSS Module 产物 <hash>_slot / <hash>_frame，hash 随构建变化，
+   禁止硬编码；故用「局部名子串 + 结构 + 内联 style 变量」三重锚定：
+     - [class*="_slot"]:has(> nav[class*="_frame"])  外层 sticky 容器（hash-0 时也命中）
+     - [style*="--turn-natural-position"]            官方 itemPosition() 对每轮必写的内联变量
+   隐藏而非卸载：官方组件仍挂载（React 重渲染会还原被删节点）。 */
+html[data-tidychat-hide-official-nav] [class*="_slot"]:has(> nav[class*="_frame"]),
+html[data-tidychat-hide-official-nav] nav[class*="_frame"]:has([style*="--turn-natural-position"]) {
+  display: none !important;
+}
 .tidychat-nav-rail {
   position: fixed;
   z-index: 40;
@@ -477,8 +488,12 @@ const NAV_SIDE_OPTIONS: ReadonlyArray<{ key: string; label: string }> = [
   { key: 'right', label: '右缘（镜像）' },
 ]
 const NAV_STYLE_OPTIONS: ReadonlyArray<{ key: string; label: string }> = [
-  { key: 'bar', label: '竖条' },
+  { key: 'bar', label: '横线' },
   { key: 'dot', label: '圆点' },
+]
+const NAV_RING_OPTIONS: ReadonlyArray<{ key: string; label: string }> = [
+  { key: 'off', label: '关' },
+  { key: 'on', label: '开' },
 ]
 
 export function apply(ctx: any): void {
@@ -550,7 +565,7 @@ export function apply(ctx: any): void {
   }
 
   // 设置：tidychat 命名空间，四个开关 + 定位条配色（默认色 auto 尊重主题 + 强调色 auto 跟随主题品牌色）；读不到 settings 服务时全开。
-  const config = { fold: true, divider: true, navigator: true, autoLoad: true, navColor: 'auto', navColorCustom: '', navColorLight: 'l3', navAccent: 'auto', navAccentCustom: '', navAccentLight: 'l3', navSide: 'left', navStyle: 'bar' }
+  const config = { fold: true, divider: true, navigator: true, hideOfficialNav: false, autoLoad: true, navColor: 'auto', navColorCustom: '', navColorLight: 'l3', navAccent: 'auto', navAccentCustom: '', navAccentLight: 'l3', navSide: 'left', navStyle: 'bar', navRing: false }
   let settingsScope: any = null
   const settingsFace = ctx.get('webUiSettings') ?? ctx.get('settingsScope')
   if (settingsFace !== undefined && typeof settingsFace.bind === 'function') {
@@ -1258,6 +1273,18 @@ export function apply(ctx: any): void {
     applyTipContrast()
   }
 
+  // 接管官方右缘消息轨（DSH 0.1.2+ 原生 TurnNavigator）：只切根元素属性，隐藏交给 CSS 规则。
+  // 用属性而非直接操作 DOM —— 官方轨由宿主 React 渲染，删节点会在下次渲染被还原。
+  // 注意：属性名不在主题观察器的 attributeFilter 里，不会触发观察器回环。
+  const applyOfficialNavTakeover = (): void => {
+    const root = document.documentElement
+    if (config.hideOfficialNav === true) {
+      if (!root.hasAttribute('data-tidychat-hide-official-nav')) root.setAttribute('data-tidychat-hide-official-nav', '')
+    } else if (root.hasAttribute('data-tidychat-hide-official-nav')) {
+      root.removeAttribute('data-tidychat-hide-official-nav')
+    }
+  }
+
   // 设置读取 + 订阅（设置面板改动即时生效）
   if (settingsScope !== null) {
     const readConfig = (): void => {
@@ -1266,8 +1293,9 @@ export function apply(ctx: any): void {
         if (snap !== null && snap !== undefined && snap.status === 'ready' && snap.value) {
           config.fold = snap.value.fold ?? true
           config.divider = snap.value.divider ?? true
-          config.navigator = snap.value.navigator ?? false
-          config.autoLoad = snap.value.autoLoad ?? false
+          config.navigator = snap.value.navigator ?? true
+          config.hideOfficialNav = snap.value.hideOfficialNav === true
+          config.autoLoad = snap.value.autoLoad ?? true
           config.navColor = typeof snap.value.navColor === 'string' ? snap.value.navColor : 'auto'
           config.navColorCustom = typeof snap.value.navColorCustom === 'string' ? snap.value.navColorCustom : ''
           config.navColorLight = typeof snap.value.navColorLight === 'string' ? snap.value.navColorLight : 'l3'
@@ -1276,17 +1304,20 @@ export function apply(ctx: any): void {
           config.navAccentLight = typeof snap.value.navAccentLight === 'string' ? snap.value.navAccentLight : 'l3'
           config.navSide = snap.value.navSide === 'right' ? 'right' : 'left'
           config.navStyle = snap.value.navStyle === 'dot' ? 'dot' : 'bar'
+          config.navRing = snap.value.navRing === true
         }
       } catch { /* keep defaults */ }
     }
     readConfig()
     applyNavColors()
+    applyOfficialNavTakeover()
     ctx.effect(() => {
       let unsub: () => void = () => {}
       try {
         unsub = settingsScope.subscribe(() => {
           readConfig()
           applyNavColors()
+          applyOfficialNavTakeover()
           scan()
           // 配置里影响定位条布局/样式的项（navSide/navStyle/配色）变化时立即重排重绘
           notify()
@@ -1299,6 +1330,7 @@ export function apply(ctx: any): void {
 
   scan()
   applyNavColors()
+  applyOfficialNavTakeover()
 
   // 主观察器（收窄到会话滚动容器）——提升到 apply 作用域，便于会话切换时立即重绑。
   let mainObserver: MutationObserver | null = null
@@ -1331,11 +1363,12 @@ export function apply(ctx: any): void {
     themeObs.observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'style', 'data-theme'] })
     return () => {
       themeObs.disconnect()
-      // 卸载时清掉写入 :root 的临时 CSS 变量，避免残留污染宿主主题
+      // 卸载时清掉写入 :root 的临时 CSS 变量与接管属性，避免残留污染宿主主题
       document.documentElement.style.removeProperty('--tidychat-nav-color')
       document.documentElement.style.removeProperty('--tidychat-nav-color-hot')
       document.documentElement.style.removeProperty('--tidychat-nav-tip-text')
       document.documentElement.style.removeProperty('--tidychat-nav-tip-head')
+      document.documentElement.removeAttribute('data-tidychat-hide-official-nav')
     }
   })
 
@@ -1350,7 +1383,7 @@ export function apply(ctx: any): void {
     }
   })
 
-  // 定位条横向占用：rail padding 2px + slot padding 6px×2 + 竖条最宽 30px ≈ 44px，留 4px 余量
+  // 定位条横向占用：rail padding 2px + slot padding 6px×2 + 横线最宽 30px ≈ 44px，留 4px 余量
   const NAV_RAIL_WIDTH = 48
 
   const measurePos = (): { left: number; top: number; gutter: number } | null => {
@@ -1390,9 +1423,25 @@ export function apply(ctx: any): void {
   const NAV_RAIL_TURN_SPACING = 12
   const NAV_RAIL_MIN_HEIGHT = 48
   const HEADER_OFFSET = 64
+  // 外圈（独立开关 navRing）：1px 描边、外扩 2px，画在插件自己的横线/圆点包围盒之外，仅当前轮与悬停轮。
+  const NAV_RAIL_RING_W = 1
+  const NAV_RAIL_RING_OFFSET = 2
 
   // 轨道高度自适应：turn 少时按 12px/轮 收紧（不用最大高度），turn 多时封顶 min(70vh, 660px)
   const railHeight = (n: number): number => Math.min(Math.min(window.innerHeight * 0.7, 660), Math.max(NAV_RAIL_MIN_HEIGHT, n * NAV_RAIL_TURN_SPACING))
+
+  // 圆角矩形路径：外圈描边用。不走 ctx.roundRect（Chromium 99+ 才有），用 arcTo 自绘，
+  // 与项目既有的「旧内核兜底」风格一致（见配色 color-mix 兜底）。
+  const roundRectPath = (c: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number): void => {
+    const rr = Math.max(0, Math.min(r, w / 2, h / 2))
+    c.beginPath()
+    c.moveTo(x + rr, y)
+    c.arcTo(x + w, y, x + w, y + h, rr)
+    c.arcTo(x + w, y + h, x, y + h, rr)
+    c.arcTo(x, y + h, x, y, rr)
+    c.arcTo(x, y, x + w, y, rr)
+    c.closePath()
+  }
 
   // 导航条（挂到会话头部 utilities 槽，fixed 定位到聊天区左缘；独立开关 navigator）
   ctx.slots.inject('conversation.session.header.utilities', () => ctx.slots.register(
@@ -1494,7 +1543,7 @@ export function apply(ctx: any): void {
         // 配色优先读 applyNavColors 写入的变量，未写入（旧版兜底）再回退到主题 token
         const barColor = cs.getPropertyValue('--tidychat-nav-color').trim() || cs.getPropertyValue('--dsw-alias-label-caption').trim() || 'rgba(127,127,127,0.5)'
         const hotColor = cs.getPropertyValue('--tidychat-nav-color-hot').trim() || cs.getPropertyValue('--dsw-alias-state-business-primary').trim() || '#3b82f6'
-        // 右缘镜像：竖条从画布右缘向左生长，强调三角指左；圆点模式：小圆点 + 鱼眼放大
+        // 右缘镜像：横线从画布右缘向左生长，强调三角指左；圆点模式：小圆点 + 鱼眼放大
         const mirror = (config.navSide ?? 'left') === 'right'
         const dot = (config.navStyle ?? 'bar') === 'dot'
         const dir = mirror ? -1 : 1
@@ -1516,7 +1565,7 @@ export function apply(ctx: any): void {
           } else {
             const len = isHover ? NAV_RAIL_BAR_LEN_NEAR : (isCurrent ? NAV_RAIL_BAR_LEN_CURRENT : (nearest(i) ? NAV_RAIL_BAR_LEN + 4 : NAV_RAIL_BAR_LEN))
             ctx.fillRect(mirror ? W - len : 0, y - NAV_RAIL_BAR_H / 2, len, NAV_RAIL_BAR_H)
-            // 当前 turn 的强调指针（仅竖条模式）：左缘时在条右侧指右，右缘镜像后在条左侧指左
+            // 当前 turn 的强调指针（仅横线模式）：左缘时在条右侧指右，右缘镜像后在条左侧指左
             if (isCurrent) {
               const headX = mirror ? W - len - 2 : len + 2
               ctx.beginPath()
@@ -1528,6 +1577,38 @@ export function apply(ctx: any): void {
             }
           }
       }
+        // ===== 外圈（独立开关 navRing）=====
+        // 与上面两个绘制分支共用同一套尺寸常量：若改动绘制分支的尺寸，必须同步 boxOf()。
+        // 只描当前轮与悬停轮；颜色用强调色（--tidychat-nav-color-hot），不新增任何颜色配置。
+        const boxOf = (i: number, y: number, isCurrent: boolean, isHover: boolean): { x: number; y: number; w: number; h: number; dot: boolean } => {
+          if (dot) {
+            const rad = isCurrent || isHover ? 4 : (nearest(i) ? 3.2 : 2.5)
+            const cx = mirror ? W - NAV_RAIL_BAR_LEN / 2 : NAV_RAIL_BAR_LEN / 2
+            return { x: cx - rad, y: y - rad, w: rad * 2, h: rad * 2, dot: true }
+          }
+          const len = isHover ? NAV_RAIL_BAR_LEN_NEAR : (isCurrent ? NAV_RAIL_BAR_LEN_CURRENT : (nearest(i) ? NAV_RAIL_BAR_LEN + 4 : NAV_RAIL_BAR_LEN))
+          return { x: mirror ? W - len : 0, y: y - NAV_RAIL_BAR_H / 2, w: len, h: NAV_RAIL_BAR_H, dot: false }
+        }
+        if (config.navRing === true) {
+          const ringOffset = NAV_RAIL_RING_OFFSET
+          ctx.strokeStyle = hotColor
+          ctx.lineWidth = NAV_RAIL_RING_W
+          for (let i = 0; i < n; i++) {
+            const isCurrent = current === i
+            const isHover = hover === i
+            if (!isCurrent && !isHover) continue
+            const b = boxOf(i, positions[i], isCurrent, isHover)
+            if (b.dot) {
+              ctx.beginPath()
+              ctx.arc(b.x + b.w / 2, b.y + b.h / 2, b.w / 2 + ringOffset, 0, Math.PI * 2)
+              ctx.stroke()
+            } else {
+              // 横线外圈取胶囊形（圆角 = 半高 + 外扩），与圆头短横的观感一致
+              roundRectPath(ctx, b.x - ringOffset, b.y - ringOffset, b.w + ringOffset * 2, b.h + ringOffset * 2, b.h / 2 + ringOffset)
+              ctx.stroke()
+            }
+          }
+        }
       }
 
       React.useEffect(() => {
@@ -1633,7 +1714,7 @@ export function apply(ctx: any): void {
           const u = users[idx]
           if (u !== undefined) {
             // 右缘镜像：tip.x 记鼠标左侧 18px，渲染改用 right 定位（left+translateX(-100%)
-            // 会把收缩适配宽度压到「视口宽-left」≈40px，泡泡被挤成一条竖条）
+            // 会把收缩适配宽度压到「视口宽-left」≈40px，泡泡被挤成一条细窄条）
             const mirror = (config.navSide ?? 'left') === 'right'
             setTip({ x: mirror ? p.x - 18 : p.x + 18, y: p.y - 8, num: idx + 1, time: u.time !== undefined && u.time !== null ? hhmm(u.time) : '', text: u.summary, mirror })
           }
@@ -1705,12 +1786,13 @@ export function apply(ctx: any): void {
       try { unsub = settingsScope.subscribe(pull) } catch { unsub = () => {} }
       return () => { try { unsub() } catch { /* ignore */ } }
     }, [])
-    const value = (snap !== null && snap !== undefined && snap.value) ? snap.value : { fold: true, divider: true, navigator: true, autoLoad: true, navColor: 'auto', navColorCustom: '', navColorLight: 'l3', navAccent: 'auto', navAccentCustom: '', navAccentLight: 'l3', navSide: 'left', navStyle: 'bar', debug: false }
+    const value = (snap !== null && snap !== undefined && snap.value) ? snap.value : { fold: true, divider: true, navigator: true, hideOfficialNav: false, autoLoad: true, navColor: 'auto', navColorCustom: '', navColorLight: 'l3', navAccent: 'auto', navAccentCustom: '', navAccentLight: 'l3', navSide: 'left', navStyle: 'bar', navRing: false, debug: false }
     const writable = snap !== null && snap !== undefined ? snap.writable : false
     const fields: Array<[string, string, string]> = [
       ['fold', '自动折叠已完成轮次', '隐藏思考、工具调用与中间文字，只保留最终结论，控制条含处理时长。'],
       ['divider', '思考↔文字分隔线', '在思考行与正文文字之间插入实线，区分过程与结论。'],
       ['navigator', '左缘定位条', '聊天区左缘的细窄条状导航，悬停显示摘要、点击跳转到对应消息；贴边与样式可在下方调整。'],
+      ['hideOfficialNav', '接管官方消息轨', '隐藏 DSH 原生右缘 TurnNavigator（0.1.2+），由本插件定位条接管。注意：是隐藏而非卸载，官方轨仍会挂载；定位条本身关闭时请勿开启，否则将没有任何消息轨。'],
       ['autoLoad', '智能加载更早历史', '在页面空闲时逐步加载更早记录；检测到页面响应下降时自动暂停，以保持长会话流畅。需要时仍可手动继续加载。'],
     ]
     const toggle = (field: string): void => {
@@ -1829,7 +1911,11 @@ export function apply(ctx: any): void {
             React.createElement('span', { className: 'tidychat-field-label' }, '显示样式'),
           ),
           chipRow(NAV_STYLE_OPTIONS, String(value.navStyle ?? 'bar'), (k) => setColor('navStyle', k), !writable),
-          React.createElement('p', { className: 'tidychat-field-hint' }, '位置 = 消息轨贴会话区左缘或右缘，右缘时整体镜像（竖条模式的强调三角指左、摘要卡从左侧弹出）；样式 = 竖条或圆点，圆点模式同样保留悬停鱼眼放大与点击跳转。'),
+          React.createElement('div', { className: 'tidychat-field-head', style: { marginTop: '8px' } },
+            React.createElement('span', { className: 'tidychat-field-label' }, '外圈'),
+          ),
+          chipRow(NAV_RING_OPTIONS, value.navRing === true ? 'on' : 'off', (k) => setColor('navRing', k === 'on'), !writable),
+          React.createElement('p', { className: 'tidychat-field-hint' }, '位置 = 消息轨贴会话区左缘或右缘，右缘时整体镜像（横线模式的强调三角指左、摘要卡从左侧弹出）；样式 = 横线或圆点，圆点模式同样保留悬停鱼眼放大与点击跳转；外圈 = 在当前轮与悬停轮的标记外描一圈强调色（1px、外扩 2px），横线为胶囊形、圆点为正圆环，颜色跟随下方「强调色」。'),
         ),
         React.createElement('div', { key: 'navColors', className: 'tidychat-field' },
           React.createElement('button', {

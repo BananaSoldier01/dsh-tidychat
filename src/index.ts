@@ -20,6 +20,8 @@ export interface Config {
   divider?: boolean
   /** 左缘 Codex 式用户消息定位条。 */
   navigator?: boolean
+  /** 接管官方右缘消息轨：开启后隐藏 DSH 原生 TurnNavigator（0.1.2+），由本插件定位条接管。 */
+  hideOfficialNav?: boolean
   /** 页面空闲时逐步加载更早历史；检测到性能压力时自动暂停。 */
   autoLoad?: boolean
   /** 定位条默认色模式：auto（优先宿主淡色文字色，对比不足自动换纠偏灰）/ custom（用 navColorCustom）；gray…red 为历史色系值（兼容保留）。 */
@@ -36,8 +38,10 @@ export interface Config {
   navAccentLight?: string
   /** 定位条贴边：left（左缘，默认）/ right（右缘镜像，强调三角与摘要卡随边镜像）。 */
   navSide?: string
-  /** 定位条样式：bar（竖条，默认）/ dot（圆点，保留鱼眼放大交互）。 */
+  /** 定位条样式：bar（横线，默认）/ dot（圆点，保留鱼眼放大交互）。 */
   navStyle?: string
+  /** 定位条外圈：在插件自己的横线/圆点外描一圈强调色（1px 描边、外扩 2px），仅当前轮与悬停轮。 */
+  navRing?: boolean
 }
 
 /** 定位条默认色模式枚举（auto / custom；gray…red 为历史色系值，兼容保留）。 */
@@ -55,6 +59,7 @@ export const Config: z<Config> = z.object({
   fold: z.boolean().default(true),
   divider: z.boolean().default(true),
   navigator: z.boolean().default(false),
+  hideOfficialNav: z.boolean().default(false),
   autoLoad: z.boolean().default(false),
   navColor: z.union(NAV_HUE_KEYS).default('auto'),
   navColorCustom: z.string().default(''),
@@ -64,6 +69,7 @@ export const Config: z<Config> = z.object({
   navAccentLight: z.union(NAV_LIGHT_KEYS).default('l3'),
   navSide: z.union(NAV_SIDE_KEYS).default('left'),
   navStyle: z.union(NAV_STYLE_KEYS).default('bar'),
+  navRing: z.boolean().default(false),
 })
 
 export const inject: string[] = []
