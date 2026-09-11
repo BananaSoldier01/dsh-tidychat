@@ -46,8 +46,8 @@ export const NAV_LIGHT_KEYS = ['l1', 'l2', 'l3', 'l4', 'l5'] as const
 export const Config: z<Config> = z.object({
   fold: z.boolean().default(true),
   divider: z.boolean().default(true),
-  navigator: z.boolean().default(false),
-  autoLoad: z.boolean().default(false),
+  navigator: z.boolean().default(true),
+  autoLoad: z.boolean().default(true),
   navColor: z.union(NAV_HUE_KEYS).default('auto'),
   navColorCustom: z.string().default(''),
   navColorLight: z.union(NAV_LIGHT_KEYS).default('l3'),
