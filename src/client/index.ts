@@ -997,11 +997,18 @@ export function apply(ctx: any): void {
     if (activeSessionId === null) return -1
     try {
       const binding = ctx.sessions.binding(activeSessionId)
-      if (binding === undefined || binding.session === undefined) return -1
-      const snap = binding.session.getSnapshot()
-      if (snap === null || snap === undefined || !Array.isArray(snap.nodes)) return -1
+      if (binding === undefined || binding.eventSource === undefined) return -1
+      const snap = binding.eventSource.getSnapshot()
+      if (snap === null || snap === undefined || !Array.isArray(snap.entries)) return -1
       let n = 0
-      for (const node of snap.nodes) if (node !== null && node !== undefined && node.kind === 'user') n += 1
+      for (const entry of snap.entries) {
+        if (entry === null || entry === undefined || entry.type !== 'event') continue
+        const ev = entry.event
+        if (ev === null || ev === undefined || ev.type !== 'user/message') continue
+        const src = ev.data?.source
+        if (src !== undefined && src !== null && src.kind !== 'user') continue
+        n += 1
+      }
       return n
     } catch { return -1 }
   }
@@ -1491,8 +1498,11 @@ export function apply(ctx: any): void {
         }
         if (typeof sid === 'undefined' || sid === null) return
         const binding = ctx.sessions.binding(sid)
-        if (binding === undefined || binding.session === undefined) return
-        const face = binding.session
+        // 取数路径：会话「事件窗」而不是 session 控制状态快照。
+        // 0.1.2+ 的 session.getSnapshot() 只返回 queue/running/hasMore 等控制字段，没有消息节点，
+        // 按旧假设读 snapshot.nodes 会解析出 0 个用户轮 → 定位条整个不渲染。
+        if (binding === undefined || binding.eventSource === undefined) return
+        const face = binding.eventSource
         const pull = () => {
           let snap: any = null
           try { snap = face.getSnapshot() } catch { snap = null }
@@ -1531,17 +1541,24 @@ export function apply(ctx: any): void {
         }
       }, [props.sessionId])
 
+      // 事件窗条目是 { type: 'event' | 'chunks', event } 包装（SessionEventLikeEntry），
+      // 真正的会话事件在 entry.event。用户轮 = type 'user/message' 且 data.source.kind === 'user'
+      //（agent / plugin 注入的上下文也复用 'user/message' 事件类型，必须按 source 过滤）。
       const users: Array<{ seq: number; time: number; summary: string }> = []
-      if (snapshot !== null && snapshot !== undefined && Array.isArray(snapshot.nodes)) {
-        for (const node of snapshot.nodes) {
-          if (node === null || node === undefined || node.kind !== 'user') continue
+      if (snapshot !== null && snapshot !== undefined && Array.isArray(snapshot.entries)) {
+        for (const entry of snapshot.entries) {
+          if (entry === null || entry === undefined || entry.type !== 'event') continue
+          const ev = entry.event
+          if (ev === null || ev === undefined || ev.type !== 'user/message') continue
+          const src = ev.data?.source
+          if (src !== undefined && src !== null && src.kind !== 'user') continue
           let text = ''
-          if (Array.isArray(node.content)) {
-            for (const block of node.content) {
+          if (Array.isArray(ev.data?.content)) {
+            for (const block of ev.data.content) {
               if (block !== null && block !== undefined && typeof block.text === 'string') text += block.text
             }
           }
-          users.push({ seq: node.seq, time: node.time, summary: String(text).trim().slice(0, 120) })
+          users.push({ seq: ev.seq, time: ev.time, summary: String(text).trim().slice(0, 120) })
         }
       }
 
