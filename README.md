@@ -6,19 +6,19 @@
 > | DSH 版本 | settings 注册 | 折叠/分隔线/自动加载 | 左缘定位条 |
 > | --- | --- | --- | --- |
 > | 0.1.0-rc.7 / 0.1.1-rc.x | `register`（v0.2.7+）/ `installSettingsSection`（v0.2.5） | ✅ 折叠/分隔线/自动加载正常（v0.2.8 起回退 anchor-key；v0.2.7 不生效） | ✅ 可用（navigator 开；旧槽 + 锚点均在） |
-> | 0.1.2-alpha.2+ / 0.1.2-rc.1 | `installSection` | ✅ 正常 | ⛔ 暂停（官方右缘 TurnNavigator + `react-dom`） |
+> | 0.1.2-alpha.2+ / 0.1.2-rc.1 | `installSection` | ✅ 正常 | ✅ 可用（本修复起 —— 此前取数路径读错快照导致解析出 0 轮、整体不渲染；官方右缘 TurnNavigator 仍会并存） |
 >
 > - **settings 自动适配**：插件按宿主 DSH 版本自动选用注册 API——0.1.2+ 用 `installSection`，0.1.0-rc.7 / 0.1.1-rc.x 用 `register`——同一份插件在 **0.1.0-rc.7 ~ 0.1.2-rc.1** 都能加载并设置开关。
-> - **左缘定位条**：在**没有官方右缘 TurnNavigator 的旧版 DSH（0.1.0-rc.7 ~ 0.1.1-rc.x）上可用**（navigator 开；旧槽 `conversation.session.header.utilities` 存在且被渲染，所需 DOM 锚点均在，已从 0.1.1-rc.2 源码确认）。在 **DSH 0.1.2+**（有官方右缘 TurnNavigator）**暂停显示**，原因：官方新增右缘 TurnNavigator 与它重叠，且定位条依赖 `react-dom`（当前插件与宿主均未提供）。是否保留/优化待后续版本定。
+> - **左缘定位条**：在 **DSH 0.1.0-rc.7 ~ 0.1.2-rc.1 全区间可用**（navigator 开）。⚠️ 0.2.6 ~ 0.2.9 记录的「DSH 0.1.2+ 暂停显示（与官方右缘 TurnNavigator 冲突 + 依赖 `react-dom`）」**结论不成立**：真实原因是取数路径读了 `session.getSnapshot()`，而 0.1.2+ 起该快照只有会话控制字段、没有消息节点，插件据此解析出 0 个用户轮后组件直接不渲染（零 DOM、控制台无报错）；`react-dom` 在源码中零引用，构建产物唯一的 `require()` 实参是 `react`。本修复改为读会话事件窗（`binding.eventSource`）后恢复渲染。官方右缘 TurnNavigator 与本插件定位条在 0.1.2+ 上仍会并存（上游暂无接管开关）。
 > - **折叠/分隔线**：v0.2.8 起在旧版 DSH 也可用——`data-chat-turn` 缺失时回退到从 `data-chat-anchor-key` 解析 turn 号（v0.2.5 的做法）。v0.2.7 无此回退，故 v0.2.7 在旧版折叠/分隔线不生效（仅自动加载正常）。
 > - **功能重叠**：DSH 0.1.2 起官方原生新增「折叠过程内容 + System prompt」与右缘 TurnNavigator，与插件的 fold / 左缘定位条重叠。
 > - **使用建议**：
->   - **DSH 0.1.2+**：官方原生折叠与插件 fold 二选一——用官方就关插件 fold（避免双折叠）；想用插件的折叠控制条就关官方原生折叠。左缘定位条默认暂停。
+>   - **DSH 0.1.2+**：官方原生折叠与插件 fold 二选一——用官方就关插件 fold（避免双折叠）；想用插件的折叠控制条就关官方原生折叠。定位条已可用（本修复起），但它与官方右缘 TurnNavigator 会同时显示，可在「设置 → 插件配置」用 navigator 开关二选一。
 >   - **DSH ≤ 0.1.1-rc.x**：左缘定位条可用（navigator 开）；折叠/分隔线/自动加载在 v0.2.8 起也可用。
 
 让 DSH 的长会话变成**可扫读、可跳转**的结论流。
 
-多任务、多轮次的会话里，思考、工具调用、中间文字和最终总结混在一起，回头找「上次那个任务的结论」很费劲。dsh-tidychat 把已完成的任务轮次自动折叠成一条结论，把思考与正文用分隔线切开；聊天区左缘的 Codex 式全局导航定位条（Canvas minimap）在**没有官方右缘 TurnNavigator 的旧版 DSH（0.1.0-rc.7 ~ 0.1.1-rc.x）上可用**（navigator 开），在**DSH 0.1.2+（有官方右缘 TurnNavigator）暂停**（与官方功能重叠 + 依赖 react-dom）。
+多任务、多轮次的会话里，思考、工具调用、中间文字和最终总结混在一起，回头找「上次那个任务的结论」很费劲。dsh-tidychat 把已完成的任务轮次自动折叠成一条结论，把思考与正文用分隔线切开；聊天区左缘的 Codex 式全局导航定位条（Canvas minimap）在 **DSH 0.1.0-rc.7 ~ 0.1.2-rc.1 全区间可用**（navigator 开；0.1.2+ 的官方右缘 TurnNavigator 会与之并存）。
 
 > 🔌 生态：挂 `#dsh` · `#dsh-plugin` topic，欢迎收录。
 
@@ -28,11 +28,11 @@
 | --- | --- |
 | 🗂 自动折叠 | 已完成轮次自动收起思考（Think）、工具调用与中间文字，只保留最终总结；控制条含「过程 N 步」和处理时长（用时 / 首 token / 速率） |
 | ➖ 分隔线 | 思考行与正文之间的实线，一眼区分「过程」与「结论」 |
-| 📍 左缘定位条（Adaptive Navigation Rail） | **旧版 DSH（0.1.0-rc.7 ~ 0.1.1-rc.x，无官方右缘 TurnNavigator）可用**（navigator 开）；**DSH 0.1.2+ 暂停**（与官方新功能冲突 + react-dom 问题）。历史能力：固定高度 Canvas minimap，任意轮次全局映射；鱼眼悬停、拖动预览、点击跳转、当前轮次高亮；配色可自适应，或用调色盘自定义（HEX/RGB 输入 + 透明度） |
+| 📍 左缘定位条（Adaptive Navigation Rail） | 聊天区左缘的 Codex 式全局导航（navigator 开；**DSH 0.1.0-rc.7 ~ 0.1.2-rc.1 全区间可用**，0.1.2+ 与官方右缘 TurnNavigator 并存）。固定高度 Canvas minimap，任意轮次全局映射；鱼眼悬停、拖动预览、点击跳转、当前轮次高亮；配色可自适应，或用调色盘自定义（HEX/RGB 输入 + 透明度） |
 | ⬆ 智能加载更早历史 | 页面空闲时逐步加载更早记录；检测到页面响应开始下降时自动暂停，保持长会话流畅，需要时仍可手动继续加载 |
 | 📤 一键报告问题 | 自动生成诊断报告（版本/浏览器/性能数据/异常检测/现象标签），一键打开 GitHub issue 预填页，标题正文全带，零手写提交 |
 
-折叠 / 分隔线 / 智能加载更早历史可各自独立开关（「设置 → 插件配置」，改动即时生效）；左缘定位条在**无官方右缘 TurnNavigator 的旧版 DSH 上可用**（navigator 开），在 **DSH 0.1.2+ 暂停**（默认关）。另有一键「📤 生成诊断报告并提交」入口。
+折叠 / 分隔线 / 智能加载更早历史可各自独立开关（「设置 → 插件配置」，改动即时生效）；左缘定位条同在一处开关，**DSH 0.1.0-rc.7 ~ 0.1.2-rc.1 全区间可用**。另有一键「📤 生成诊断报告并提交」入口。
 
 ## 📸 效果
 
@@ -43,7 +43,7 @@
   <img src="./assets/fold-expanded.png" width="92%" alt="展开：恢复完整过程">
 </p>
 
-**左缘定位条（Canvas minimap）**：在**无官方右缘 TurnNavigator 的旧版 DSH（0.1.0-rc.7 ~ 0.1.1-rc.x）可用**（navigator 开）；**DSH 0.1.2+ 暂停**（与官方新功能冲突 + react-dom）。下图为历史版本运行效果。
+**左缘定位条（Canvas minimap）**：聊天区左缘的全局导航，**DSH 0.1.0-rc.7 ~ 0.1.2-rc.1 全区间可用**（navigator 开）。
 
 <p align="center">
   <img src="./assets/navigator.png" width="92%" alt="左缘定位条与悬停摘要（历史版本）">
@@ -156,7 +156,19 @@ dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat
 1. **折叠/分隔线兼容回退**：折叠分组在 `data-chat-turn` 缺失（旧版 DSH 0.1.0-rc.7 ~ 0.1.1-rc.x）时，回退到从 `data-chat-anchor-key` 解析 turn 号（v0.2.5 做法），让折叠/分隔线在旧版 DSH 也生效（0.1.2+ 仍走 `data-chat-turn`，行为不变）。
 2. **左缘定位条确认可用**：旧版 DSH 没有官方右缘 TurnNavigator，旧槽 `conversation.session.header.utilities` 存在且被渲染、所需 DOM 锚点均在（0.1.1-rc.2 源码确认）——**旧版 DSH（0.1.0-rc.7 ~ 0.1.1-rc.x）定位条可正常使用**（navigator 开）；DSH 0.1.2+ 因有官方右缘 TurnNavigator 仍暂停。
 
-### 0.2.9（已发布，本次）—— 调色盘配色 + 折叠残留标记修复
+### 未发布 —— 定位条在 DSH 0.1.2+ 恢复渲染 + 消除「圆点与行错位」
+
+> 完整根因定位见 [`docs/RAIL-ROOT-CAUSE-ANALYSIS.md`](./docs/RAIL-ROOT-CAUSE-ANALYSIS.md)。
+
+1. **根因一 · 完全不渲染**：定位条的用户轮来自 `session.getSnapshot()`，但 DSH 0.1.2+ 的该快照只返回**会话控制状态**（`queue` / `running` / `hasMore` / `openState`…），**没有消息节点字段**。插件按旧假设读 `snapshot.nodes` → `Array.isArray()` 为 false → 解析出 0 个用户轮 → 组件 `return null`：**零 DOM、控制台无报错**。这就是 0.2.6 起「左缘定位条暂停」的真实原因，当时误判为「与官方右缘 TurnNavigator 冲突 / 依赖 `react-dom`」（源码中 `react-dom` 零引用）。同一误诊也影响「一键报告问题」里的「快照轮次 vs DOM 轮次」诊断——它此前恒为 0/n-a。
+2. **修复一 · 消除双源错位**：定位条此前维护两套平行数据——事件流生成的圆点（身份/数量/摘要）与 DOM 查询的行（几何/跳转/当前轮），靠「数量恰好相等」的隐含假设维系，宿主任何渲染差异都会在缝上爆出错位，且失效全是静默的。现在**以 DOM 行为单一事实源**：圆点的身份/数量/顺序取自 `data-chat-anchor-key` 行，事件流降级为「触发器 + 摘要/时间增强」（数量相等时按序配对，不等时回退行内文本自愈）——「圆点无对应行」构造上不可能。
+3. **根因二 · 尾部圆点点击失效**：宿主把用户消息渲染成两种 DOM 节点（`data-chat-flow-kind` 为 `user` 或 `steering`，后者是 agent 运行中插队发送的消息），而插件的行采集器只匹配 `user`。于是「圆点数 > DOM 行数」→ 索引整体错位：尾部圆点映射到不存在的行（点击静默无反应），当前轮检测的二分上限也停在错位后的最后一行（滚到底仍高亮倒数第三）。宿主自己的 CSS 始终把两类 kind 当同一类处理。
+4. **修复二 · 口径对齐宿主**：行采集器改认 `user | steering`；圆点采集器补 `surfaceOp` 过滤（对齐宿主 `isAppendSurfaceEvent`：replace 类表面事件不会新增 DOM 行，计入会复制同一类错位；`undefined` 容忍旧宿主不带该标记）。诊断报告与性能日志同步复用同一采集口径。
+5. **修复三 · 另两处静默失效**：`measurePos` 的 gutter 参照由单一元素（composer 优先）改为「输入框卡片 + 首个/末个会话行」取最贴边者，防留白误判导致轨被隐藏；滚动处理在 rAF 内自检 `scrollHeight` 漂移（图片/代码块懒加载会改变行高）并重建行缓存，消除过期几何造成的同类错位。
+6. **默认值订正**：`navigator` / `autoLoad` 的 schema 默认值由 `false` 改为 `true`（新装用户开箱可见）。**已装用户不受影响**——schemastery 会把旧默认值物化进设置，历史配置里的 `navigator: false` 需到「设置 → 插件配置」手动打开。
+7. ⚠️ 官方右缘 TurnNavigator 与本插件定位条在 0.1.2+ 上会**同时显示**（上游暂无接管开关）；可用 navigator 开关在两者间二选一。
+
+### 0.2.9（已发布）—— 调色盘配色 + 折叠残留标记修复
 
 1. **配色改为调色盘**：定位条默认色 / 强调色由「色系 × 明度」chip 改为「自动 / 自定义」二选一；自定义 = 原生取色器无极调色 + HEX/`rgb()`/`rgba()` 文本输入 + 透明度滑杆，实时色块预览。host schema 新增 `navColorCustom` / `navAccentCustom`（旧色系值仍兼容解析）。
 2. **修复折叠残留标记（issue #12 疑似根因）**：`applyFold` 只遍历本轮判定要折叠的行，若某行从「整行折叠（whole）」变成「只折叠思考（inline）」，旧的 `data-tidychat-folded` 不会被移除 → 该行被 CSS 永久隐藏（含总结正文），直到刷新页面。现在每轮重算前先统一清理标记再按本轮判定重打（同任务内完成，不闪烁）；同时修复「关闭 fold 开关后先前折叠的行仍隐藏」。
