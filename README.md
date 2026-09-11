@@ -156,12 +156,17 @@ dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat
 1. **折叠/分隔线兼容回退**：折叠分组在 `data-chat-turn` 缺失（旧版 DSH 0.1.0-rc.7 ~ 0.1.1-rc.x）时，回退到从 `data-chat-anchor-key` 解析 turn 号（v0.2.5 做法），让折叠/分隔线在旧版 DSH 也生效（0.1.2+ 仍走 `data-chat-turn`，行为不变）。
 2. **左缘定位条确认可用**：旧版 DSH 没有官方右缘 TurnNavigator，旧槽 `conversation.session.header.utilities` 存在且被渲染、所需 DOM 锚点均在（0.1.1-rc.2 源码确认）——**旧版 DSH（0.1.0-rc.7 ~ 0.1.1-rc.x）定位条可正常使用**（navigator 开）；DSH 0.1.2+ 因有官方右缘 TurnNavigator 仍暂停。
 
-### 未发布 —— 修复定位条在 DSH 0.1.2+ 完全不渲染（取数路径）
+### 未发布 —— 定位条在 DSH 0.1.2+ 恢复渲染 + 消除「圆点与行错位」
 
-1. **根因**：定位条的用户轮来自 `session.getSnapshot()`，但 DSH 0.1.2+ 的该快照只返回**会话控制状态**（`queue` / `running` / `hasMore` / `openState`…），**没有消息节点字段**。插件按旧假设读 `snapshot.nodes` → `Array.isArray()` 为 false → 解析出 0 个用户轮 → 组件 `return null`：**零 DOM、控制台无报错**。这就是 0.2.6 起「左缘定位条暂停」的真实原因，当时误判为「与官方右缘 TurnNavigator 冲突 / 依赖 `react-dom`」（源码中 `react-dom` 零引用）。同一份误诊也影响「一键报告问题」里的「快照轮次 vs DOM 轮次」诊断——它此前恒为 0/n-a。
-2. **修复**：取数路径改为 `binding.eventSource.getSnapshot().entries`——会话事件窗（`SessionEventSource`）。用户轮判定 = 条目 `type === 'event'` 且 `event.type === 'user/message'` 且 `data.source.kind === 'user'`（**必须按 source 过滤**：agent 注入的 system prompt、skill 目录、后台任务通知都复用同一事件类型）。悬停卡时间直接用事件的 `time`（Unix 毫秒）。修复后定位条在 **DSH 0.1.0-rc.7 ~ 0.1.2-rc.1 全区间可用**。
-3. **默认值订正**：`navigator` / `autoLoad` 的 schema 默认值由 `false` 改为 `true`（新装用户开箱可见）。**已装用户不受影响**——schemastery 会把旧默认值物化进设置，历史配置里的 `navigator: false` 需到「设置 → 插件配置」手动打开。
-4. ⚠️ 官方右缘 TurnNavigator 与本插件定位条在 0.1.2+ 上会**同时显示**（上游暂无接管开关）；可用 navigator 开关在两者间二选一。
+> 完整根因定位见 [`docs/RAIL-ROOT-CAUSE-ANALYSIS.md`](./docs/RAIL-ROOT-CAUSE-ANALYSIS.md)。
+
+1. **根因一 · 完全不渲染**：定位条的用户轮来自 `session.getSnapshot()`，但 DSH 0.1.2+ 的该快照只返回**会话控制状态**（`queue` / `running` / `hasMore` / `openState`…），**没有消息节点字段**。插件按旧假设读 `snapshot.nodes` → `Array.isArray()` 为 false → 解析出 0 个用户轮 → 组件 `return null`：**零 DOM、控制台无报错**。这就是 0.2.6 起「左缘定位条暂停」的真实原因，当时误判为「与官方右缘 TurnNavigator 冲突 / 依赖 `react-dom`」（源码中 `react-dom` 零引用）。同一误诊也影响「一键报告问题」里的「快照轮次 vs DOM 轮次」诊断——它此前恒为 0/n-a。
+2. **修复一 · 消除双源错位**：定位条此前维护两套平行数据——事件流生成的圆点（身份/数量/摘要）与 DOM 查询的行（几何/跳转/当前轮），靠「数量恰好相等」的隐含假设维系，宿主任何渲染差异都会在缝上爆出错位，且失效全是静默的。现在**以 DOM 行为单一事实源**：圆点的身份/数量/顺序取自 `data-chat-anchor-key` 行，事件流降级为「触发器 + 摘要/时间增强」（数量相等时按序配对，不等时回退行内文本自愈）——「圆点无对应行」构造上不可能。
+3. **根因二 · 尾部圆点点击失效**：宿主把用户消息渲染成两种 DOM 节点（`data-chat-flow-kind` 为 `user` 或 `steering`，后者是 agent 运行中插队发送的消息），而插件的行采集器只匹配 `user`。于是「圆点数 > DOM 行数」→ 索引整体错位：尾部圆点映射到不存在的行（点击静默无反应），当前轮检测的二分上限也停在错位后的最后一行（滚到底仍高亮倒数第三）。宿主自己的 CSS 始终把两类 kind 当同一类处理。
+4. **修复二 · 口径对齐宿主**：行采集器改认 `user | steering`；圆点采集器补 `surfaceOp` 过滤（对齐宿主 `isAppendSurfaceEvent`：replace 类表面事件不会新增 DOM 行，计入会复制同一类错位；`undefined` 容忍旧宿主不带该标记）。诊断报告与性能日志同步复用同一采集口径。
+5. **修复三 · 另两处静默失效**：`measurePos` 的 gutter 参照由单一元素（composer 优先）改为「输入框卡片 + 首个/末个会话行」取最贴边者，防留白误判导致轨被隐藏；滚动处理在 rAF 内自检 `scrollHeight` 漂移（图片/代码块懒加载会改变行高）并重建行缓存，消除过期几何造成的同类错位。
+6. **默认值订正**：`navigator` / `autoLoad` 的 schema 默认值由 `false` 改为 `true`（新装用户开箱可见）。**已装用户不受影响**——schemastery 会把旧默认值物化进设置，历史配置里的 `navigator: false` 需到「设置 → 插件配置」手动打开。
+7. ⚠️ 官方右缘 TurnNavigator 与本插件定位条在 0.1.2+ 上会**同时显示**（上游暂无接管开关）；可用 navigator 开关在两者间二选一。
 
 ### 0.2.9（已发布）—— 调色盘配色 + 折叠残留标记修复
 
