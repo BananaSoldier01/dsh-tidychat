@@ -3,22 +3,23 @@
 > [中文](./README.md)
 
 > **▼ DSH version compatibility**
-> | DSH version | settings registration | Fold / divider / auto-load | Left rail |
+> | DSH version | settings registration | Fold / divider / auto-load | Navigation rail |
 > | --- | --- | --- | --- |
-> | 0.1.0-rc.7 / 0.1.1-rc.x | `register` (v0.2.7+) / `installSettingsSection` (v0.2.5) | ✅ fold/divider/auto-load work (v0.2.8+ falls back to anchor-key; v0.2.7 doesn't) | ✅ available (navigator on; old slot + anchors present) |
-> | 0.1.2-alpha.2+ / 0.1.2-rc.1 | `installSection` | ✅ works | ⛔ paused (official right TurnNavigator + `react-dom`) |
+> | 0.1.0-rc.7 / 0.1.1-rc.x | `register` (v0.2.7+) / `installSettingsSection` (v0.2.5) | ✅ fold/divider/auto-load work (v0.2.8+ falls back to anchor-key; v0.2.7 doesn't) | ✅ available (navigator on; old slot + anchors present; no official rail to take over) |
+> | 0.1.2-alpha.2+ / 0.1.2-rc.1 | `installSection` | ✅ works | ✅ available since the unreleased fix — on v0.2.10 and earlier the rail read the wrong snapshot on 0.1.2+ and resolved 0 turns, so it never rendered; the fix needs no extra step ("Take over the official rail" only controls hiding the host rail) |
 >
 > - **Settings auto-adapts**: the plugin picks the registration API per host version — `installSection` on 0.1.2+, `register` on 0.1.0-rc.7 / 0.1.1-rc.x — so the same plugin loads and registers its toggles across **DSH 0.1.0-rc.7 → 0.1.2-rc.1**.
-> - **Left rail**: **available on old DSH without the official right-edge TurnNavigator (0.1.0-rc.7 ~ 0.1.1-rc.x)** (navigator on; the `conversation.session.header.utilities` slot exists and is rendered, and the needed DOM anchors are present — confirmed from the 0.1.1-rc.2 source). **Paused on DSH 0.1.2+** (official right TurnNavigator present), because it overlaps the official feature and depends on `react-dom` (not provided). Keep/rework is deferred to a future version.
+> - **Navigation rail**: since DSH 0.1.2 the host ships its own right-edge TurnNavigator, which overlaps this plugin's rail. **v0.2.10 adds a "Take over the official rail" toggle** (default **off**): turning it on hides the official right-edge rail so this plugin's rail takes over — dockable left or right (right mirrors it), with a "line / dot" display style and a separate "ring" toggle. The toggle is off by default, so nobody's official behaviour changes silently.
+>   - ⚠️ The official rail is **hidden, not unmounted**: the host exposes no native switch, so the plugin cannot make the official component "logically off". With takeover on the official component stays mounted (its DOM remains) — what stops is painting, layout, interaction and scroll-following.
 > - **Fold / divider**: v0.2.8+ also works on old DSH — when `data-chat-turn` is absent it falls back to parsing the turn from `data-chat-anchor-key` (v0.2.5's approach). v0.2.7 lacked this fallback, so its fold/divider were broken on old DSH (auto-load worked).
-> - **Feature overlap**: since DSH 0.1.2 the host natively folds process content + System prompt and adds a right-edge TurnNavigator, overlapping the plugin's fold / left-edge rail.
+> - **Feature overlap**: since DSH 0.1.2 the host natively folds process content + System prompt and adds a right-edge TurnNavigator, overlapping the plugin's fold / rail.
 > - **Usage recommendation**:
->   - **DSH 0.1.2+**: pick one with the native fold — if you use the native fold, disable the plugin's fold (avoid double-folding); if you want the plugin's fold control bar, disable the native fold. The left rail is paused by default.
->   - **DSH ≤ 0.1.1-rc.x**: the left rail is available (navigator on); fold/divider/auto-load also work on v0.2.8+.
+>   - **DSH 0.1.2+**: pick one with the native fold — if you use the native fold, disable the plugin's fold (avoid double-folding); if you want the plugin's fold control bar, disable the native fold. To use this plugin's own rail, turn on "Take over the official rail" — otherwise you will see two rails, one on each edge.
+>   - **DSH ≤ 0.1.1-rc.x**: the rail is available (navigator on); fold/divider/auto-load also work on v0.2.8+.
 
 Turn long DSH conversations into a **scannable, skippable** stream of conclusions.
 
-In multi-task sessions, thoughts, tool calls, intermediate text and final summaries pile up, making it hard to find "the conclusion of that last task". dsh-tidychat automatically folds completed turns into a single conclusion line and separates thinking from prose with a divider; the Codex-style navigation rail (Canvas minimap) on the left edge is **available on old DSH without the official right-edge TurnNavigator (0.1.0-rc.7 ~ 0.1.1-rc.x, navigator on)** and **paused on DSH 0.1.2+** (overlaps the official feature + `react-dom` dependency).
+In multi-task sessions, thoughts, tool calls, intermediate text and final summaries pile up, making it hard to find "the conclusion of that last task". dsh-tidychat automatically folds completed turns into a single conclusion line and separates thinking from prose with a divider; the Codex-style navigation rail (Canvas minimap) docks to either edge, and with the "Take over the official rail" toggle it replaces the host's right-edge TurnNavigator on **DSH 0.1.2+** (on older DSH there is no official rail, so it just works).
 
 > 🔌 Ecosystem: tagged `#dsh` · `#dsh-plugin`, contributions welcome.
 
@@ -28,11 +29,12 @@ In multi-task sessions, thoughts, tool calls, intermediate text and final summar
 | --- | --- |
 | 🗂 Auto-fold | Completed turns fold away thinking (Think), tool calls and intermediate text, keeping only the final summary; the control bar shows "N steps" and timing (duration / first token / rate) |
 | ➖ Divider | A solid line between thinking and prose — one glance separates "process" from "conclusion" |
-| 📍 Left-edge Navigation Rail (Adaptive) | **Available on old DSH (0.1.0-rc.7 ~ 0.1.1-rc.x, no official right TurnNavigator)** (navigator on); **paused on DSH 0.1.2+** (official-feature conflict + `react-dom`). Historical capability: fixed-height Canvas minimap mapping any turn count; fish-eye hover, drag preview, click-to-jump, current-turn highlight; color auto-adapts, or custom via a color picker (HEX/RGB input + alpha) |
+| 📍 Navigation rail (Adaptive) | Global navigation along the chat edge, dockable **left or right** (right mirrors everything: the accent arrow points left, the hover summary opens to the left). Fixed-height Canvas minimap mapping any turn count; fish-eye hover, drag preview, click-to-jump, current-turn highlight. Two display styles: **line** / **dot**; plus a separate **ring** toggle (an accent outline around the current and hovered marks). Colour auto-adapts, or custom via a colour picker (HEX/RGB input + alpha). On **DSH 0.1.2+ you must turn on "Take over the official rail"**, otherwise it coexists with the host's right-edge rail |
+| 🎛 Take over the official rail | Hides DSH 0.1.2+'s native right-edge TurnNavigator so this plugin's rail takes over. **Off by default.** Note: it hides rather than unmounts — the official component stays mounted (the host offers no native switch) |
 | ⬆ Smart earlier-history load | Gradually loads older records while the page is idle; pauses automatically when the page's responsiveness drops, keeping long sessions smooth; manual load still available |
 | 📤 One-click issue report | Generates a diagnostic report (version / browser / performance / anomaly detection / symptom tags) and opens a pre-filled GitHub issue — title and body included, zero manual writing |
 
-Fold / divider / smart early-history load are independent toggles in "Settings → Plugin Configuration", applied instantly; the left-edge rail is **available on old DSH without the official right TurnNavigator** (navigator on) and **paused on DSH 0.1.2+** (default off). Also includes a one-click "Generate diagnostic report & submit" entry.
+Fold / divider / smart early-history load / take-over-the-official-rail are independent toggles in "Settings → Plugin Configuration", applied instantly; the rail itself has three more controls — "Position" (left / right), "Style" (line / dot) and "Ring" (off / on). Also includes a one-click "Generate diagnostic report & submit" entry.
 
 ## 📸 Screenshots
 
@@ -43,16 +45,16 @@ Fold / divider / smart early-history load are independent toggles in "Settings �
   <img src="./assets/fold-expanded.png" width="92%" alt="Expanded: full process restored">
 </p>
 
-**Left-edge navigation rail (Canvas minimap)**: available on **old DSH without the official right TurnNavigator (0.1.0-rc.7 ~ 0.1.1-rc.x, navigator on)**; **paused on DSH 0.1.2+** (official-feature conflict + `react-dom`). The image below shows the historical version.
+**Navigation rail (Canvas minimap)**: dockable left or right, style line / dot, ring independently toggleable. The image below was taken on old DSH without the official right-edge TurnNavigator (since v0.2.10 the same works on DSH 0.1.2+ once "Take over the official rail" is on).
 
 <p align="center">
-  <img src="./assets/navigator.png" width="92%" alt="Left-edge navigation rail and hover summary">
+  <img src="./assets/navigator.png" width="92%" alt="Navigation rail and hover summary">
 </p>
 
-**Settings panel**: four independent toggles + symptom tags + one-click "Generate diagnostic report & submit", applied instantly.
+**Settings panel**: four independent toggles (including "Take over the official rail") + rail position/style/ring + symptom tags + one-click "Generate diagnostic report & submit", applied instantly.
 
 <p align="center">
-  <img src="./assets/settings.png" width="92%" alt="Settings panel with four toggles">
+  <img src="./assets/settings.png" width="92%" alt="Settings panel">
 </p>
 
 ## 🚀 Install
@@ -64,7 +66,7 @@ Prerequisite: DSH (Web) installed, `pnpm` on PATH.
 dsh plugin --profile web add @bananasoldier01/dsh-tidychat
 
 # Option 2: from GitHub (pin a tag for reproducibility)
-dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat.git#v0.2.9
+dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat.git#v0.2.10
 ```
 
 Restart dsh web + hard refresh (Cmd+Shift+R) after installing.
@@ -78,7 +80,7 @@ The plugin is installed as a profile dependency; updating just re-pulls that dep
 dsh plugin --profile web update @bananasoldier01/dsh-tidychat
 
 # Option B: pinned to a tag — re-add pinned to the new tag
-dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat.git#v0.2.9
+dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat.git#v0.2.10
 ```
 
 Restart dsh web + hard refresh after updating.
@@ -156,16 +158,39 @@ No functional changes — npm package content only: `README.en.md` bundled, `rep
 1. **Fold/divider fallback**: when `data-chat-turn` is missing (old DSH 0.1.0-rc.7 ~ 0.1.1-rc.x), the fold grouping falls back to parsing the turn from `data-chat-anchor-key` (v0.2.5's approach), so fold/divider also work on old DSH (0.1.2+ still uses `data-chat-turn`, unchanged).
 2. **Left rail confirmed available**: old DSH has no official right TurnNavigator; the `conversation.session.header.utilities` slot exists and is rendered, and the needed DOM anchors are all present (confirmed from the 0.1.1-rc.2 source) — so the left rail works on **old DSH (0.1.0-rc.7 ~ 0.1.1-rc.x, navigator on)**; it stays paused on DSH 0.1.2+ because of the official right TurnNavigator.
 
-### 0.2.9 (released, current) — Color picker + stale-fold-mark fix
+### 0.2.9 (released) — Color picker + stale-fold-mark fix
 
 1. **Color picker**: the rail's default color / accent now offer auto / custom instead of the `hue × lightness` chips; custom = native picker (continuous) + HEX/`rgb()`/`rgba()` input + alpha slider, with a live swatch. Host schema gains `navColorCustom` / `navAccentCustom` (legacy hue values still resolve).
 2. **Stale fold mark fix (likely root cause of issue #12)**: `applyFold` only walked the rows it folds *this* pass, so a row that flipped from "fold whole" to "fold think only" kept its old `data-tidychat-folded` and stayed hidden (including the final answer) until a page reload. Each pass now clears the marks first, then re-applies them (same JS task, no flicker). Also fixes hidden rows staying hidden after turning fold off.
 3. **Tooltip text color fix** (PR #9, issue #11): double-class + `!important` on `.tidychat-nav-tip`, and `applyTipContrast()` now reads tokens from `document.body` (DSH defines `--dsw-alias-*` on body, not html).
 
+### 0.2.10 (released) — Take over the official rail + rail style polish
+
+1. **New "Take over the official rail" toggle** (default **off**): hides the host's native right-edge TurnNavigator on **DSH 0.1.2+** so this plugin's rail takes over. The rail is now usable across the whole **0.1.0-rc.7 → 0.1.2-rc.1** range.
+   - It **hides rather than unmounts**: the host exposes no native switch, so the plugin cannot stop the official component from mounting. Hiding is done with a root attribute (`data-tidychat-hide-official-nav`) plus a CSS rule, which React re-renders cannot undo; turning the toggle off removes the attribute and the official rail reappears immediately.
+   - The selector does **not** hardcode the official CSS-module hash (`eGxaPq_*` changes between builds). It anchors on three things: the local-name substring, the structure, and the inline `--turn-natural-position` variable the official code writes for every turn.
+   - With takeover on the official component stays mounted, but painting, layout, interaction and scroll-following all stop. Hiding only ever *reduces* work — it adds none.
+2. **New "Ring" style toggle** (default **off**): draws an accent outline (1px stroke, offset 2px) around the current and hovered marks — a capsule for the line style, a true circle for the dot style. Its colour follows the existing accent, so no new colour setting is introduced.
+3. **Fixed the "vertical bar" mislabel — it is a line**: the display-style option had always read "vertical bar", but the drawing code is `fillRect(x, y, width, height)` with a width (14–26px) far greater than its height (3px) — it was **always a horizontal line**, and the repo has never contained any vertical-line drawing code. The option label, comments and settings hint now all say "line", matching the README's existing "thin rail" wording. Both styles (line / dot) have **zero changes** to their drawing code.
+4. **Corrected the unsupported "depends on `react-dom`" claim**: `git grep react-dom` finds nothing in the source, and the only `require()` argument in the built bundle is `react`; the rail only uses `useState`/`useRef`/`useEffect`/`createElement`. The claim came from a temporary DOM implementation that was already deleted before v0.2.6 — stale misdiagnosis, now corrected.
+
+> 📌 **Spare mainline `shadow/main`**: points at `upstream/main` (the pristine v0.2.9 mainline; `--unset-upstream` so it cannot be pushed by accident). Purpose: `feat/rail-mirror-and-dots` (left/right mirroring + dot style, 5 commits) has not been accepted upstream — if it never merges, this is the clean mainline to restart from.
+>
+> ⚠️ **Measured: cherry-picking the whole commit onto `shadow/main` needs manual conflict resolution** (2 blocks in `src/index.ts`, 9 in `src/client/index.ts`) — the 0.2.10 changes interleave with that feature inside the same files. The conflicts are all small (config fields, a settings entry, around the drawing loop), but it is **not** a one-command operation. If you need a "no feature + official-rail takeover" build, start from `shadow/main` and port the takeover by hand: the CSS rule, `applyOfficialNavTakeover()`, the two config fields (`hideOfficialNav` / `navRing`), and one settings entry.
+
+### Unreleased — fix the rail never rendering on DSH 0.1.2+ (data path)
+
+1. **Root cause**: the rail built its user-turn list from `session.getSnapshot()`, but on DSH 0.1.2+ that snapshot only returns **session control state** (`queue` / `running` / `hasMore` / `openState`…) and **has no message-node field**. The plugin still read `snapshot.nodes` → `Array.isArray()` false → 0 user turns → the component returned `null`: **no DOM at all, and no console error**. This is the real reason behind the "left rail paused" note that has been in the README since 0.2.6 (which misattributed it to "conflicts with the official rail / depends on react-dom").
+2. **Fix**: the rail now reads `binding.eventSource.getSnapshot().entries` — the session event window (`SessionEventSource`), the same source the official TurnNavigator and other ecosystem rail plugins use. A user turn = an entry with `type === 'event'`, an inner `event.type === 'user/message'`, and `data.source.kind === 'user'` (**the source filter is required**: agent-injected content — the system prompt, the skill catalog, background-job notices — reuses the very same `user/message` event type). Tooltip times come straight from the event's `time` (Unix ms).
+3. **Correcting the 0.2.10 claim**: 0.2.10 states "the rail is now usable across the whole 0.1.0-rc.7 → 0.1.2-rc.1 range" — that was not true. On 0.1.2+ the rail **never rendered** (data-path bug); only after this fix does that claim hold.
+4. **Defaults corrected**: the `navigator` / `autoLoad` schema defaults changed from `false` to `true`, so a fresh install shows the rail out of the box. **Existing installs are unaffected**: schemastery materialises the old defaults into settings, so a historical `navigator: false` must be turned on in Settings → Plugin configuration.
+5. **Verification**: the event-window parser was replayed over 194 real session logs (0 decode failures), the largest with 63 user turns; on the same data the old implementation always resolved 0 turns.
+
 ### Next (candidates)
 
 1. **Turn Index layer** — conversation DOM → Turn Index (id/element/position/summary), shared by fold/navigator/autoload, replacing full rescans; incremental maintenance once real 500+/1000+ turn data is available.
 2. **Folding completed in-flight steps** (issue #2) — within a single turn that runs many actions, fold completed steps live. Demand TBD.
+3. **Upstream issue**: ask DSH to expose a switch (or slot override) for its native TurnNavigator so third-party plugins can truly "turn it off" instead of only hiding it; and to consider narrowing rail items from "the whole session outline" to "the loaded window + lazy loading" to cut mark counts on very long sessions.
 
 ### Local dev (link mode)
 
@@ -184,9 +209,13 @@ Expand the **dsh-tidychat** card in "Settings → Plugin Configuration":
 
 - **Auto-fold completed turns**: hides thinking, tool calls and intermediate text, keeps only the final conclusion; control bar shows timing.
 - **Thinking ↔ text divider**: solid line between the thinking row and body text.
-- **Left-edge navigation rail**: thin rail on the left edge; hover shows summary, click jumps to the message.
+- **Navigation rail**: thin rail along the chat edge; hover shows summary, click jumps to the message; position and style are adjustable below.
+- **Take over the official rail** (default off): hides DSH 0.1.2+'s native right-edge TurnNavigator so this plugin's rail takes over. It is a **hide, not an unmount** — the official rail stays mounted; do not enable it while the rail itself is off, or you will have no rail at all.
 - **Smart earlier-history load**: gradually loads older records while idle; pauses when responsiveness drops; manual load remains available.
-- **Colors (advanced, collapsible)**: **default color** and **accent** each offer auto / custom. **Auto**: the default color uses the host muted label, switching to a corrective gray when contrast vs the chat background is insufficient; the accent follows the theme brand color (`--dsw-alias-state-business-primary`). **Custom**: pick any color with the color picker (continuous), or type an exact HEX / `rgb()` / `rgba()` value, plus an alpha slider. The **accent** drives the current + hover turn highlight.
+- **Position**: `left` / `right (mirrored)`. On the right everything mirrors — the line grows leftwards from the right edge, the accent arrow points left, and the hover summary opens to the left of the cursor.
+- **Style**: `line` / `dot`. Both keep the fish-eye zoom (marks near the cursor grow) and click-to-jump.
+- **Ring** (default off): draws an accent outline (1px stroke, offset 2px) around the current and hovered marks; a capsule for the line style and a true circle for the dot style. Its colour follows the accent below.
+- **Colors (advanced, collapsible)**: **default color** and **accent** each offer auto / custom. **Auto**: the default color uses the host muted label, switching to a corrective gray when contrast vs the chat background is insufficient; the accent follows the theme brand color (`--dsw-alias-state-business-primary`). **Custom**: pick any color with the color picker (continuous), or type an exact HEX / `rgb()` / `rgba()` value, plus an alpha slider. The **accent** drives the current + hover turn highlight and is also the ring's stroke colour.
 
 ## 🔧 How it works
 
@@ -194,7 +223,8 @@ Pure browser half (`exports "./client"`); the host half only registers the setti
 
 - Fold / divider / navigation locate DOM via contract-level anchors (`data-chat-anchor-key`, `data-variant="think"`, etc.), not compile-time hashed class names;
 - A `MutationObserver` watches the conversation DOM, with a periodic fallback scan, handling streaming renders and history loads;
-- Fold state is in-memory per session — refresh resets to defaults (all folded).
+- Fold state is in-memory per session — refresh resets to defaults (all folded);
+- "Take over the official rail" also avoids build-time hashes: the official TurnNavigator's class names are CSS-module artifacts (`<hash>_slot` / `<hash>_frame`), so the plugin anchors on a **local-name substring + structure + the inline `--turn-natural-position` variable the official code writes for every turn**. Turning it off simply removes the `data-tidychat-hide-official-nav` attribute from the root element.
 
 ## 🧑‍💻 Development
 

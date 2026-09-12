@@ -105,6 +105,17 @@ const CSS = `
   overflow: hidden;
   transition: opacity .18s ease, height .18s ease, margin .18s ease, padding .18s ease;
 }
+/* 接管官方右缘消息轨（DSH 0.1.2+ 原生 TurnNavigator）：仅当根元素带
+   data-tidychat-hide-official-nav 时生效（由 applyOfficialNavTakeover 切换）。
+   官方类名是 CSS Module 产物 <hash>_slot / <hash>_frame，hash 随构建变化，
+   禁止硬编码；故用「局部名子串 + 结构 + 内联 style 变量」三重锚定：
+     - [class*="_slot"]:has(> nav[class*="_frame"])  外层 sticky 容器（hash-0 时也命中）
+     - [style*="--turn-natural-position"]            官方 itemPosition() 对每轮必写的内联变量
+   隐藏而非卸载：官方组件仍挂载（React 重渲染会还原被删节点）。 */
+html[data-tidychat-hide-official-nav] [class*="_slot"]:has(> nav[class*="_frame"]),
+html[data-tidychat-hide-official-nav] nav[class*="_frame"]:has([style*="--turn-natural-position"]) {
+  display: none !important;
+}
 .tidychat-nav-rail {
   position: fixed;
   z-index: 40;
@@ -452,6 +463,39 @@ function injectStyle(css: string): () => void {
 
 const REPORT_TAGS: ReadonlyArray<string> = ['滚动卡顿', '输入卡顿', '界面卡顿', '定位条异常', '自动加载异常', '折叠异常']
 
+// 定位条配色选择项（settings 卡片用）：色系 × 多级明度 正交组合。
+// preview 用于色块预览；明度 l1=浅 / l2=中 / l3=深。
+const NAV_HUE_OPTIONS: ReadonlyArray<{ key: string; label: string; preview: string }> = [
+  { key: 'gray', label: '灰', preview: '#9e9e9e' },
+  { key: 'black', label: '黑', preview: '#111111' },
+  { key: 'white', label: '白', preview: '#f5f5f5' },
+  { key: 'blue', label: '蓝', preview: '#3b82f6' },
+  { key: 'violet', label: '紫', preview: '#8b5cf6' },
+  { key: 'cyan', label: '青', preview: '#06b6d4' },
+  { key: 'green', label: '绿', preview: '#22c55e' },
+  { key: 'orange', label: '橙', preview: '#f97316' },
+  { key: 'red', label: '红', preview: '#ef4444' },
+]
+const NAV_LIGHT_OPTIONS: ReadonlyArray<{ key: string; label: string }> = [
+  { key: 'l1', label: '极浅' },
+  { key: 'l2', label: '浅' },
+  { key: 'l3', label: '中' },
+  { key: 'l4', label: '深' },
+  { key: 'l5', label: '极深' },
+]
+const NAV_SIDE_OPTIONS: ReadonlyArray<{ key: string; label: string }> = [
+  { key: 'left', label: '左缘' },
+  { key: 'right', label: '右缘（镜像）' },
+]
+const NAV_STYLE_OPTIONS: ReadonlyArray<{ key: string; label: string }> = [
+  { key: 'bar', label: '横线' },
+  { key: 'dot', label: '圆点' },
+]
+const NAV_RING_OPTIONS: ReadonlyArray<{ key: string; label: string }> = [
+  { key: 'off', label: '关' },
+  { key: 'on', label: '开' },
+]
+
 export function apply(ctx: any): void {
   ctx.effect(() => injectStyle(CSS))
 
@@ -521,7 +565,7 @@ export function apply(ctx: any): void {
   }
 
   // 设置：tidychat 命名空间，四个开关 + 定位条配色（默认色 auto 尊重主题 + 强调色 auto 跟随主题品牌色）；读不到 settings 服务时全开。
-  const config = { fold: true, divider: true, navigator: false, autoLoad: false, navColor: 'auto', navColorCustom: '', navColorLight: 'l3', navAccent: 'auto', navAccentCustom: '', navAccentLight: 'l3' }
+  const config = { fold: true, divider: true, navigator: true, hideOfficialNav: false, autoLoad: true, navColor: 'auto', navColorCustom: '', navColorLight: 'l3', navAccent: 'auto', navAccentCustom: '', navAccentLight: 'l3', navSide: 'left', navStyle: 'bar', navRing: false }
   let settingsScope: any = null
   const settingsFace = ctx.get('webUiSettings') ?? ctx.get('settingsScope')
   if (settingsFace !== undefined && typeof settingsFace.bind === 'function') {
@@ -802,6 +846,49 @@ export function apply(ctx: any): void {
     return Array.from((container ?? document).querySelectorAll<Element>(selector))
   }
 
+  // ===== 消息轨共享采集 helper（主链路与诊断报告共用，保证口径一致）=====
+
+  // DOM 侧用户行：'user'（开新回合）+ 'steering'（运行中插队，宿主渲染为独立 kind）二者同视。
+  // 漏掉 steering 会让「圆点数 > DOM 行数」→ 尾部圆点映射到不存在的行（RAIL-ROOT-CAUSE-ANALYSIS §6 根因）。
+  const railRows = (): Element[] => scopedRows('[data-chat-anchor-key]').filter((r) => {
+    const k = r.getAttribute('data-chat-flow-kind')
+    return k === 'user' || k === 'steering'
+  })
+
+  // 事件侧用户轮：user/message + source.kind === 'user'，且只统计 append 表面事件
+  //（对齐宿主 isAppendSurfaceEvent：replace/重写事件不会新增 DOM 行，计入会造成圆点与行错位；
+  // undefined 容忍旧宿主不带 surfaceOp 标记的情况）。
+  const collectUserEvents = (snapshot: any): Array<{ seq: number; time: number; summary: string }> => {
+    const out: Array<{ seq: number; time: number; summary: string }> = []
+    if (snapshot === null || snapshot === undefined || !Array.isArray(snapshot.entries)) return out
+    for (const entry of snapshot.entries) {
+      if (entry === null || entry === undefined || entry.type !== 'event') continue
+      const ev = entry.event
+      if (ev === null || ev === undefined || ev.type !== 'user/message') continue
+      const op = (ev as any).surfaceOp
+      if (op !== undefined && op !== 'append') continue
+      const src = ev.data?.source
+      if (src !== undefined && src !== null && src.kind !== 'user') continue
+      let text = ''
+      if (Array.isArray(ev.data?.content)) {
+        for (const block of ev.data.content) {
+          if (block !== null && block !== undefined && typeof block.text === 'string') text += block.text
+        }
+      }
+      out.push({ seq: ev.seq, time: ev.time, summary: String(text).trim().slice(0, 120) })
+    }
+    return out
+  }
+
+  // 摘要回退：行内隐藏文本（hover actions/时间）会被 textContent 带上，innerText 排除不可见内容；
+  // 仅在缓存重建/渲染期调用（非滚动热路径），布局成本可接受。
+  const fallbackSummary = (el: Element): string => {
+    try {
+      const t = (el as HTMLElement).innerText ?? ''
+      return t.replace(/\s+/g, ' ').trim().slice(0, 120)
+    } catch { return String(el.textContent ?? '').trim().slice(0, 120) }
+  }
+
   const isLoadOlderButton = (b: Element): boolean => {
     const t = (b.textContent || '').trim()
     // 仅匹配会话专属文案；移除泛化的「加载更多 / Load more」，避免误点其它列表的同名按钮
@@ -992,17 +1079,14 @@ export function apply(ctx: any): void {
   })
 
   // ===== 一键报告问题：组装诊断报告 → 复制剪贴板 → 打开预填 GitHub issue =====
-  // 会话快照中的用户轮次统计（与 DOM 轮次对照，用于诊断「快照/DOM 不同步」）
+  // 会话快照中的用户轮次统计（与 DOM 轮次对照，用于诊断「快照/DOM 不同步」）——
+  // 复用主链路 collectUserEvents，保证口径一致（surfaceOp append + source.kind 过滤）
   const snapshotUserTurns = (): number => {
     if (activeSessionId === null) return -1
     try {
       const binding = ctx.sessions.binding(activeSessionId)
-      if (binding === undefined || binding.session === undefined) return -1
-      const snap = binding.session.getSnapshot()
-      if (snap === null || snap === undefined || !Array.isArray(snap.nodes)) return -1
-      let n = 0
-      for (const node of snap.nodes) if (node !== null && node !== undefined && node.kind === 'user') n += 1
-      return n
+      if (binding === undefined || binding.eventSource === undefined) return -1
+      return collectUserEvents(binding.eventSource.getSnapshot()).length
     } catch { return -1 }
   }
   // 异常检测（报告正文「系统检测」段与标题共用）
@@ -1014,14 +1098,14 @@ export function apply(ctx: any): void {
     if (!config.autoLoad) issues.push('自动加载已关闭，历史窗口偏小')
     if (config.autoLoad && findLoadOlderButton() !== null && st?.status === 'idle') issues.push('自动加载开启但未在加载，且仍有更早历史未加载')
     const snapTurns = snapshotUserTurns()
-    const domTurns = scopedRows('[data-chat-anchor-key]').filter((r) => r.getAttribute('data-chat-flow-kind') === 'user').length
+    const domTurns = railRows().length
     if (snapTurns >= 0 && snapTurns !== domTurns) issues.push(`会话快照 ${snapTurns} 轮 / DOM ${domTurns} 轮不一致（可能加载中或 DOM 更新滞后）`)
     return issues
   }
   const buildReport = (tags: ReadonlyArray<string>, issues: ReadonlyArray<string>): string => {
     const st = activeSessionId !== null ? governor.get(activeSessionId) : undefined
     const rows = scopedRows('[data-chat-anchor-key]')
-    const turns = rows.filter((r) => r.getAttribute('data-chat-flow-kind') === 'user').length
+    const turns = railRows().length
     const snapTurns = snapshotUserTurns()
     const hasMore = findLoadOlderButton() !== null
     return [
@@ -1229,6 +1313,18 @@ export function apply(ctx: any): void {
     applyTipContrast()
   }
 
+  // 接管官方右缘消息轨（DSH 0.1.2+ 原生 TurnNavigator）：只切根元素属性，隐藏交给 CSS 规则。
+  // 用属性而非直接操作 DOM —— 官方轨由宿主 React 渲染，删节点会在下次渲染被还原。
+  // 注意：属性名不在主题观察器的 attributeFilter 里，不会触发观察器回环。
+  const applyOfficialNavTakeover = (): void => {
+    const root = document.documentElement
+    if (config.hideOfficialNav === true) {
+      if (!root.hasAttribute('data-tidychat-hide-official-nav')) root.setAttribute('data-tidychat-hide-official-nav', '')
+    } else if (root.hasAttribute('data-tidychat-hide-official-nav')) {
+      root.removeAttribute('data-tidychat-hide-official-nav')
+    }
+  }
+
   // 设置读取 + 订阅（设置面板改动即时生效）
   if (settingsScope !== null) {
     const readConfig = (): void => {
@@ -1237,26 +1333,34 @@ export function apply(ctx: any): void {
         if (snap !== null && snap !== undefined && snap.status === 'ready' && snap.value) {
           config.fold = snap.value.fold ?? true
           config.divider = snap.value.divider ?? true
-          config.navigator = snap.value.navigator ?? false
-          config.autoLoad = snap.value.autoLoad ?? false
+          config.navigator = snap.value.navigator ?? true
+          config.hideOfficialNav = snap.value.hideOfficialNav === true
+          config.autoLoad = snap.value.autoLoad ?? true
           config.navColor = typeof snap.value.navColor === 'string' ? snap.value.navColor : 'auto'
           config.navColorCustom = typeof snap.value.navColorCustom === 'string' ? snap.value.navColorCustom : ''
           config.navColorLight = typeof snap.value.navColorLight === 'string' ? snap.value.navColorLight : 'l3'
           config.navAccent = typeof snap.value.navAccent === 'string' ? snap.value.navAccent : 'auto'
           config.navAccentCustom = typeof snap.value.navAccentCustom === 'string' ? snap.value.navAccentCustom : ''
           config.navAccentLight = typeof snap.value.navAccentLight === 'string' ? snap.value.navAccentLight : 'l3'
+          config.navSide = snap.value.navSide === 'right' ? 'right' : 'left'
+          config.navStyle = snap.value.navStyle === 'dot' ? 'dot' : 'bar'
+          config.navRing = snap.value.navRing === true
         }
       } catch { /* keep defaults */ }
     }
     readConfig()
     applyNavColors()
+    applyOfficialNavTakeover()
     ctx.effect(() => {
       let unsub: () => void = () => {}
       try {
         unsub = settingsScope.subscribe(() => {
           readConfig()
           applyNavColors()
+          applyOfficialNavTakeover()
           scan()
+          // 配置里影响定位条布局/样式的项（navSide/navStyle/配色）变化时立即重排重绘
+          notify()
           if (config.autoLoad && activeSessionId !== null) scheduleNext(activeSessionId)
         })
       } catch { /* ignore */ }
@@ -1266,6 +1370,7 @@ export function apply(ctx: any): void {
 
   scan()
   applyNavColors()
+  applyOfficialNavTakeover()
 
   // 主观察器（收窄到会话滚动容器）——提升到 apply 作用域，便于会话切换时立即重绑。
   let mainObserver: MutationObserver | null = null
@@ -1298,11 +1403,12 @@ export function apply(ctx: any): void {
     themeObs.observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'style', 'data-theme'] })
     return () => {
       themeObs.disconnect()
-      // 卸载时清掉写入 :root 的临时 CSS 变量，避免残留污染宿主主题
+      // 卸载时清掉写入 :root 的临时 CSS 变量与接管属性，避免残留污染宿主主题
       document.documentElement.style.removeProperty('--tidychat-nav-color')
       document.documentElement.style.removeProperty('--tidychat-nav-color-hot')
       document.documentElement.style.removeProperty('--tidychat-nav-tip-text')
       document.documentElement.style.removeProperty('--tidychat-nav-tip-head')
+      document.documentElement.removeAttribute('data-tidychat-hide-official-nav')
     }
   })
 
@@ -1317,7 +1423,7 @@ export function apply(ctx: any): void {
     }
   })
 
-  // 定位条横向占用：rail padding 2px + slot padding 6px×2 + 竖条最宽 30px ≈ 44px，留 4px 余量
+  // 定位条横向占用：rail padding 2px + slot padding 6px×2 + 横线最宽 30px ≈ 44px，留 4px 余量
   const NAV_RAIL_WIDTH = 48
 
   const measurePos = (): { left: number; top: number; gutter: number } | null => {
@@ -1328,11 +1434,22 @@ export function apply(ctx: any): void {
     if (host === null) return null
     const r = host.getBoundingClientRect()
     if (r.width < 10 || r.height < 10) return null
-    // 会话内容居中且 max-width 748px：宽窗口时左右有留白，窄窗口时内容铺满、左侧留白归零，
-    // 定位条会压到正文/输入框。测内容真实左缘与容器左缘的间距（gutter），不足定位条宽度即隐藏。
-    const content = scopedRows('[data-composer-card]')[0] ?? scopedRows('[data-chat-anchor-key]')[0]
-    const gutter = content !== null ? Math.max(0, content.getBoundingClientRect().left - r.left) : r.width
-    return { left: r.left, top: r.top + r.height * 0.5, gutter }
+    // 会话内容居中且 max-width 748px：宽窗口时左右有留白，窄窗口时内容铺满、留白归零，
+    // 定位条会压到正文/输入框。测「最贴目标侧边缘的内容元素」与容器边缘的间距（gutter），
+    // 不足定位条宽度即隐藏。参照候选 = 输入框卡片 + 首个/末个会话行：输入框可能比消息
+    // 内容更宽（更贴边），只取单一参照会低估 gutter 导致右缘轨被误隐藏。
+    const composer = scopedRows('[data-composer-card]')[0]
+    const chatRows = scopedRows('[data-chat-anchor-key]')
+    const candidates = [composer, chatRows[0], chatRows[chatRows.length - 1]].filter((x): x is Element => x !== null && x !== undefined)
+    const rects = candidates.map((el) => el.getBoundingClientRect())
+    if ((config.navSide ?? 'left') === 'right') {
+      const maxRight = rects.length > 0 ? Math.max(...rects.map((e) => e.right)) : r.right
+      const gutter = Math.max(0, r.right - maxRight)
+      return { left: r.right - (NAV_RAIL_WIDTH - 4), top: r.top + r.height * 0.5, gutter }
+    }
+    const minLeft = rects.length > 0 ? Math.min(...rects.map((e) => e.left)) : r.left
+    const gutterL = Math.max(0, minLeft - r.left)
+    return { left: r.left, top: r.top + r.height * 0.5, gutter: gutterL }
   }
 
   const hhmm = (ms: number): string => {
@@ -1351,9 +1468,25 @@ export function apply(ctx: any): void {
   const NAV_RAIL_TURN_SPACING = 12
   const NAV_RAIL_MIN_HEIGHT = 48
   const HEADER_OFFSET = 64
+  // 外圈（独立开关 navRing）：1px 描边、外扩 2px，画在插件自己的横线/圆点包围盒之外，仅当前轮与悬停轮。
+  const NAV_RAIL_RING_W = 1
+  const NAV_RAIL_RING_OFFSET = 2
 
   // 轨道高度自适应：turn 少时按 12px/轮 收紧（不用最大高度），turn 多时封顶 min(70vh, 660px)
   const railHeight = (n: number): number => Math.min(Math.min(window.innerHeight * 0.7, 660), Math.max(NAV_RAIL_MIN_HEIGHT, n * NAV_RAIL_TURN_SPACING))
+
+  // 圆角矩形路径：外圈描边用。不走 ctx.roundRect（Chromium 99+ 才有），用 arcTo 自绘，
+  // 与项目既有的「旧内核兜底」风格一致（见配色 color-mix 兜底）。
+  const roundRectPath = (c: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number): void => {
+    const rr = Math.max(0, Math.min(r, w / 2, h / 2))
+    c.beginPath()
+    c.moveTo(x + rr, y)
+    c.arcTo(x + w, y, x + w, y + h, rr)
+    c.arcTo(x + w, y + h, x, y + h, rr)
+    c.arcTo(x, y + h, x, y, rr)
+    c.arcTo(x, y, x + w, y, rr)
+    c.closePath()
+  }
 
   // 导航条（挂到会话头部 utilities 槽，fixed 定位到聊天区左缘；独立开关 navigator）
   ctx.slots.inject('conversation.session.header.utilities', () => ctx.slots.register(
@@ -1373,7 +1506,9 @@ export function apply(ctx: any): void {
       // scrollH 记录缓存构建时的容器内容高度——折叠/加载会改变布局（行数可能不变但位置变），用它判定重算。
       const rowCacheRef = React.useRef<{ rows: Element[]; tops: number[]; count: number; scrollH: number }>({ rows: [], tops: [], count: -1, scrollH: -1 })
 
-      const userRows = (): Element[] => scopedRows('[data-chat-anchor-key]').filter((r) => r.getAttribute('data-chat-flow-kind') === 'user')
+      // 用户行 = 'user'（开新回合）+ 'steering'（运行中插队，宿主渲染为独立 kind）二者同视，
+      // 与主链路/诊断共用模块级 railRows（口径统一）
+      const userRows = (): Element[] => railRows()
       const rebuildRowCache = (count: number, scrollH: number): void => {
         const rows = userRows()
         const container = findScrollContainer()
@@ -1436,9 +1571,9 @@ export function apply(ctx: any): void {
       const redraw = (): void => {
         const canvas = canvasRef.current
         if (canvas === null) return
-        const n = users.length
+        const n = turns.length
         if (n === 0) return
-        const H = railHeight(users.length)
+        const H = railHeight(turns.length)
         const W = NAV_RAIL_WIDTH - 8
         const dpr = window.devicePixelRatio || 1
         if (canvas.width !== Math.round(W * dpr) || canvas.height !== Math.round(H * dpr)) {
@@ -1455,25 +1590,70 @@ export function apply(ctx: any): void {
         // 配色优先读 applyNavColors 写入的变量，未写入（旧版兜底）再回退到主题 token
         const barColor = cs.getPropertyValue('--tidychat-nav-color').trim() || cs.getPropertyValue('--dsw-alias-label-caption').trim() || 'rgba(127,127,127,0.5)'
         const hotColor = cs.getPropertyValue('--tidychat-nav-color-hot').trim() || cs.getPropertyValue('--dsw-alias-state-business-primary').trim() || '#3b82f6'
+        // 右缘镜像：横线从画布右缘向左生长，强调三角指左；圆点模式：小圆点 + 鱼眼放大
+        const mirror = (config.navSide ?? 'left') === 'right'
+        const dot = (config.navStyle ?? 'bar') === 'dot'
+        const dir = mirror ? -1 : 1
         const positions = layoutPositions(n, hover, H)
         const nearest = (i: number): boolean => hover !== null && Math.abs(i - hover) <= 2
         for (let i = 0; i < n; i++) {
           const y = positions[i]
           const isCurrent = current === i
           const isHover = hover === i
-          const len = isHover ? NAV_RAIL_BAR_LEN_NEAR : (isCurrent ? NAV_RAIL_BAR_LEN_CURRENT : (nearest(i) ? NAV_RAIL_BAR_LEN + 4 : NAV_RAIL_BAR_LEN))
           const color = isCurrent || isHover ? hotColor : barColor
           ctx.fillStyle = color
-          ctx.fillRect(0, y - NAV_RAIL_BAR_H / 2, len, NAV_RAIL_BAR_H)
-          // 当前 turn 右侧加个小指针
-          if (isCurrent) {
-            ctx.fillStyle = hotColor
+          if (dot) {
+            // 圆点半径适中：常态 2.5px，鱼眼邻域 3.2px，当前/悬停 4px；不画强调三角
+            const rad = isCurrent || isHover ? 4 : (nearest(i) ? 3.2 : 2.5)
+            const cx = mirror ? W - NAV_RAIL_BAR_LEN / 2 : NAV_RAIL_BAR_LEN / 2
             ctx.beginPath()
-            ctx.moveTo(len + 2, y)
-            ctx.lineTo(len + 6, y - 3)
-            ctx.lineTo(len + 6, y + 3)
-            ctx.closePath()
+            ctx.arc(cx, y, rad, 0, Math.PI * 2)
             ctx.fill()
+          } else {
+            const len = isHover ? NAV_RAIL_BAR_LEN_NEAR : (isCurrent ? NAV_RAIL_BAR_LEN_CURRENT : (nearest(i) ? NAV_RAIL_BAR_LEN + 4 : NAV_RAIL_BAR_LEN))
+            ctx.fillRect(mirror ? W - len : 0, y - NAV_RAIL_BAR_H / 2, len, NAV_RAIL_BAR_H)
+            // 当前 turn 的强调指针（仅横线模式）：左缘时在条右侧指右，右缘镜像后在条左侧指左
+            if (isCurrent) {
+              const headX = mirror ? W - len - 2 : len + 2
+              ctx.beginPath()
+              ctx.moveTo(headX, y)
+              ctx.lineTo(headX + dir * 4, y - 3)
+              ctx.lineTo(headX + dir * 4, y + 3)
+              ctx.closePath()
+              ctx.fill()
+            }
+          }
+      }
+        // ===== 外圈（独立开关 navRing）=====
+        // 与上面两个绘制分支共用同一套尺寸常量：若改动绘制分支的尺寸，必须同步 boxOf()。
+        // 只描当前轮与悬停轮；颜色用强调色（--tidychat-nav-color-hot），不新增任何颜色配置。
+        const boxOf = (i: number, y: number, isCurrent: boolean, isHover: boolean): { x: number; y: number; w: number; h: number; dot: boolean } => {
+          if (dot) {
+            const rad = isCurrent || isHover ? 4 : (nearest(i) ? 3.2 : 2.5)
+            const cx = mirror ? W - NAV_RAIL_BAR_LEN / 2 : NAV_RAIL_BAR_LEN / 2
+            return { x: cx - rad, y: y - rad, w: rad * 2, h: rad * 2, dot: true }
+          }
+          const len = isHover ? NAV_RAIL_BAR_LEN_NEAR : (isCurrent ? NAV_RAIL_BAR_LEN_CURRENT : (nearest(i) ? NAV_RAIL_BAR_LEN + 4 : NAV_RAIL_BAR_LEN))
+          return { x: mirror ? W - len : 0, y: y - NAV_RAIL_BAR_H / 2, w: len, h: NAV_RAIL_BAR_H, dot: false }
+        }
+        if (config.navRing === true) {
+          const ringOffset = NAV_RAIL_RING_OFFSET
+          ctx.strokeStyle = hotColor
+          ctx.lineWidth = NAV_RAIL_RING_W
+          for (let i = 0; i < n; i++) {
+            const isCurrent = current === i
+            const isHover = hover === i
+            if (!isCurrent && !isHover) continue
+            const b = boxOf(i, positions[i], isCurrent, isHover)
+            if (b.dot) {
+              ctx.beginPath()
+              ctx.arc(b.x + b.w / 2, b.y + b.h / 2, b.w / 2 + ringOffset, 0, Math.PI * 2)
+              ctx.stroke()
+            } else {
+              // 横线外圈取胶囊形（圆角 = 半高 + 外扩），与圆头短横的观感一致
+              roundRectPath(ctx, b.x - ringOffset, b.y - ringOffset, b.w + ringOffset * 2, b.h + ringOffset * 2, b.h / 2 + ringOffset)
+              ctx.stroke()
+            }
           }
         }
       }
@@ -1491,8 +1671,12 @@ export function apply(ctx: any): void {
         }
         if (typeof sid === 'undefined' || sid === null) return
         const binding = ctx.sessions.binding(sid)
-        if (binding === undefined || binding.session === undefined) return
-        const face = binding.session
+        // 事件流订阅 = 触发器 + 摘要/时间增强源，不是事实源（圆点身份/数量以 DOM 行 railRows 为准）。
+        // 事件增减与行增减强相关（新消息先落账再渲染行），订阅即「DOM 可能变了」信号 → 重渲染 → 从 DOM 重算 turns。
+        // （历史备注：0.1.2+ 的 session.getSnapshot() 只返回 queue/running 等控制字段，旧路径按 snapshot.nodes
+        // 取数会解析出 0 个用户轮 → 定位条整个不渲染，见 RAIL-ROOT-CAUSE-ANALYSIS §0。）
+        if (binding === undefined || binding.eventSource === undefined) return
+        const face = binding.eventSource
         const pull = () => {
           let snap: any = null
           try { snap = face.getSnapshot() } catch { snap = null }
@@ -1512,11 +1696,18 @@ export function apply(ctx: any): void {
           resizeObs.observe(container)
         }
         window.addEventListener('resize', refresh)
-        // 滚动监听：检测「阅读区顶部」的当前 turn（rAF 节流）
+        // 滚动监听：检测「阅读区顶部」的当前 turn（rAF 节流）。
+        // 顺带自检 scrollH 漂移（图片/代码块懒加载会改变行高）：过期几何 = 同类错位的第三张脸，
+        // 漂移即重建行缓存再检测，整数比较每帧成本≈0。
         let scrollRaf = 0
         const onScroll = (): void => {
           if (scrollRaf !== 0) return
-          scrollRaf = requestAnimationFrame(() => { scrollRaf = 0; detectCurrent() })
+          scrollRaf = requestAnimationFrame(() => {
+            scrollRaf = 0
+            const c = findScrollContainer()
+            if (c !== null && c.scrollHeight !== rowCacheRef.current.scrollH) rebuildRowCache(turns.length, c.scrollHeight)
+            detectCurrent()
+          })
         }
         if (container !== null) container.addEventListener('scroll', onScroll, { passive: true })
         return () => {
@@ -1531,38 +1722,34 @@ export function apply(ctx: any): void {
         }
       }, [props.sessionId])
 
-      const users: Array<{ seq: number; time: number; summary: string }> = []
-      if (snapshot !== null && snapshot !== undefined && Array.isArray(snapshot.nodes)) {
-        for (const node of snapshot.nodes) {
-          if (node === null || node === undefined || node.kind !== 'user') continue
-          let text = ''
-          if (Array.isArray(node.content)) {
-            for (const block of node.content) {
-              if (block !== null && block !== undefined && typeof block.text === 'string') text += block.text
-            }
-          }
-          users.push({ seq: node.seq, time: node.time, summary: String(text).trim().slice(0, 120) })
-        }
-      }
+      // DOM 单一事实源：圆点身份/数量/顺序来自 DOM 行（railRows），事件流仅作摘要/时间增强。
+      // 数量相等时按序配对（事件序 = log seq 序 = DOM 序）；不等（加载中/replace 事件/窗口边缘瞬态）
+      // 时回退行内文本自愈——构造上不可能出现「圆点无对应行」的死点（RAIL-ROOT-CAUSE-ANALYSIS §6）。
+      const rows = railRows()
+      const events = collectUserEvents(snapshot)
+      const turns: Array<{ el: Element; summary: string; time: number | null }> = events.length === rows.length
+        ? rows.map((el, i) => ({ el, summary: events[i]!.summary, time: events[i]!.time as number | null }))
+        : rows.map((el) => ({ el, summary: fallbackSummary(el), time: null }))
 
       // 每轮渲染后：行数或内容高度变化（折叠/加载）→ 重建行缓存 → 检测当前 turn → 重绘 canvas
       React.useEffect(() => {
         const container = findScrollContainer()
         const scrollH = container !== null ? container.scrollHeight : 0
-        if (rowCacheRef.current.count !== users.length || rowCacheRef.current.scrollH !== scrollH) {
-          rebuildRowCache(users.length, scrollH)
+        if (rowCacheRef.current.count !== turns.length || rowCacheRef.current.scrollH !== scrollH) {
+          rebuildRowCache(turns.length, scrollH)
         }
         detectCurrent()
         redraw()
       })
 
       const jumpTo = (index: number): void => {
-        const target = rowCacheRef.current.rows[index]
-        if (target === undefined) return
+        // 元素即身份：turns 由 DOM 行生成，index 必有对应行；rowCacheRef 仅剩 detectCurrent 在用
+        const t = turns[index]
+        if (t === undefined) return
         const container = findScrollContainer()
         if (container === null) return
         const cRect = container.getBoundingClientRect()
-        const tRect = target.getBoundingClientRect()
+        const tRect = t.el.getBoundingClientRect()
         // 用户消息出现在阅读区顶部（header 之下），而非 viewport 中心或埋进 header
         container.scrollTo({ top: (tRect.top - cRect.top) + container.scrollTop - HEADER_OFFSET, behavior: 'smooth' })
       }
@@ -1576,10 +1763,15 @@ export function apply(ctx: any): void {
           if (p === null || canvasRef.current === null) return
           const canvas = canvasRef.current
           const rect = canvas.getBoundingClientRect()
-          const idx = indexFromY(p.y - rect.top, layoutPositions(users.length, hover, railHeight(users.length)))
+          const idx = indexFromY(p.y - rect.top, layoutPositions(turns.length, hover, railHeight(turns.length)))
           if (idx !== hover) setHover(idx)
-          const u = users[idx]
-          if (u !== undefined) setTip({ x: p.x + 18, y: p.y - 8, num: idx + 1, time: u.time !== undefined && u.time !== null ? hhmm(u.time) : '', text: u.summary })
+          const u = turns[idx]
+          if (u !== undefined) {
+            // 右缘镜像：tip.x 记鼠标左侧 18px，渲染改用 right 定位（left+translateX(-100%)
+            // 会把收缩适配宽度压到「视口宽-left」≈40px，泡泡被挤成一条细窄条）
+            const mirror = (config.navSide ?? 'left') === 'right'
+            setTip({ x: mirror ? p.x - 18 : p.x + 18, y: p.y - 8, num: idx + 1, time: u.time !== undefined && u.time !== null ? hhmm(u.time) : '', text: u.summary, mirror })
+          }
         })
       }
       const handlePointerLeave = (): void => {
@@ -1594,7 +1786,7 @@ export function apply(ctx: any): void {
         const canvas = canvasRef.current
         if (canvas !== null) {
           const rect = canvas.getBoundingClientRect()
-          const idx = indexFromY(ev.clientY - rect.top, layoutPositions(users.length, hover, railHeight(users.length)))
+          const idx = indexFromY(ev.clientY - rect.top, layoutPositions(turns.length, hover, railHeight(turns.length)))
           jumpTo(idx)
         }
         try { ev.currentTarget.releasePointerCapture(ev.pointerId) } catch { /* 忽略 */ }
@@ -1607,7 +1799,7 @@ export function apply(ctx: any): void {
       if (pos === null) return null
       // 会话内容左侧留白不足以容纳定位条时隐藏（Codex 同款「空间足够才显示」）
       if (pos.gutter < NAV_RAIL_WIDTH) return null
-      if (users.length === 0) return null
+      if (turns.length === 0) return null
       const style = { left: pos.left + 'px', top: pos.top + 'px' }
       const rail = React.createElement('div', {
         className: 'tidychat-nav-rail',
@@ -1623,7 +1815,9 @@ export function apply(ctx: any): void {
       }))
       const tipEl = tip === null ? null : React.createElement('div', {
         className: 'tidychat-nav-tip',
-        style: { left: tip.x + 'px', top: tip.y + 'px' },
+        style: tip.mirror
+          ? { right: Math.max(0, window.innerWidth - tip.x) + 'px', top: tip.y + 'px' }
+          : { left: tip.x + 'px', top: tip.y + 'px' },
       },
         React.createElement('div', { className: 'tidychat-nav-tip-head' }, '#' + tip.num + (tip.time !== '' ? ' · ' + tip.time : '')),
         React.createElement('div', null, tip.text),
@@ -1646,12 +1840,13 @@ export function apply(ctx: any): void {
       try { unsub = settingsScope.subscribe(pull) } catch { unsub = () => {} }
       return () => { try { unsub() } catch { /* ignore */ } }
     }, [])
-    const value = (snap !== null && snap !== undefined && snap.value) ? snap.value : { fold: true, divider: true, navigator: false, autoLoad: false, navColor: 'auto', navColorCustom: '', navColorLight: 'l3', navAccent: 'auto', navAccentCustom: '', navAccentLight: 'l3', debug: false }
+    const value = (snap !== null && snap !== undefined && snap.value) ? snap.value : { fold: true, divider: true, navigator: true, hideOfficialNav: false, autoLoad: true, navColor: 'auto', navColorCustom: '', navColorLight: 'l3', navAccent: 'auto', navAccentCustom: '', navAccentLight: 'l3', navSide: 'left', navStyle: 'bar', navRing: false, debug: false }
     const writable = snap !== null && snap !== undefined ? snap.writable : false
     const fields: Array<[string, string, string]> = [
       ['fold', '自动折叠已完成轮次', '隐藏思考、工具调用与中间文字，只保留最终结论，控制条含处理时长。'],
       ['divider', '思考↔文字分隔线', '在思考行与正文文字之间插入实线，区分过程与结论。'],
-      ['navigator', '左缘定位条', '聊天区左缘的细窄条状导航，悬停显示摘要、点击跳转到对应消息。'],
+      ['navigator', '左缘定位条', '聊天区左缘的细窄条状导航，悬停显示摘要、点击跳转到对应消息；贴边与样式可在下方调整。'],
+      ['hideOfficialNav', '接管官方消息轨', '隐藏 DSH 原生右缘 TurnNavigator（0.1.2+），由本插件定位条接管。注意：是隐藏而非卸载，官方轨仍会挂载；定位条本身关闭时请勿开启，否则将没有任何消息轨。'],
       ['autoLoad', '智能加载更早历史', '在页面空闲时逐步加载更早记录；检测到页面响应下降时自动暂停，以保持长会话流畅。需要时仍可手动继续加载。'],
     ]
     const toggle = (field: string): void => {
@@ -1761,6 +1956,21 @@ export function apply(ctx: any): void {
           ),
           React.createElement('p', { className: 'tidychat-field-hint' }, hint),
         )),
+        React.createElement('div', { key: 'navLayout', className: 'tidychat-field' },
+          React.createElement('div', { className: 'tidychat-field-head' },
+            React.createElement('span', { className: 'tidychat-field-label' }, '显示位置'),
+          ),
+          chipRow(NAV_SIDE_OPTIONS, String(value.navSide ?? 'left'), (k) => setColor('navSide', k), !writable),
+          React.createElement('div', { className: 'tidychat-field-head', style: { marginTop: '8px' } },
+            React.createElement('span', { className: 'tidychat-field-label' }, '显示样式'),
+          ),
+          chipRow(NAV_STYLE_OPTIONS, String(value.navStyle ?? 'bar'), (k) => setColor('navStyle', k), !writable),
+          React.createElement('div', { className: 'tidychat-field-head', style: { marginTop: '8px' } },
+            React.createElement('span', { className: 'tidychat-field-label' }, '外圈'),
+          ),
+          chipRow(NAV_RING_OPTIONS, value.navRing === true ? 'on' : 'off', (k) => setColor('navRing', k === 'on'), !writable),
+          React.createElement('p', { className: 'tidychat-field-hint' }, '位置 = 消息轨贴会话区左缘或右缘，右缘时整体镜像（横线模式的强调三角指左、摘要卡从左侧弹出）；样式 = 横线或圆点，圆点模式同样保留悬停鱼眼放大与点击跳转；外圈 = 在当前轮与悬停轮的标记外描一圈强调色（1px、外扩 2px），横线为胶囊形、圆点为正圆环，颜色跟随下方「强调色」。'),
+        ),
         React.createElement('div', { key: 'navColors', className: 'tidychat-field' },
           React.createElement('button', {
             type: 'button',
