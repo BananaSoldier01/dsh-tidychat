@@ -6,7 +6,7 @@
 > | DSH 版本 | settings 注册 | 折叠/分隔线/自动加载 | 消息轨（定位条） |
 > | --- | --- | --- | --- |
 > | 0.1.0-rc.7 / 0.1.1-rc.x | `register`（v0.2.7+）/ `installSettingsSection`（v0.2.5） | ✅ 折叠/分隔线/自动加载正常（v0.2.8 起回退 anchor-key；v0.2.7 不生效） | ✅ 可用（navigator 开；旧槽 + 锚点均在；旧版无官方轨，无需接管开关） |
-> | 0.1.2-alpha.2+ / 0.1.2-rc.1 | `installSection` | ✅ 正常 | ✅ 可用（v0.2.10 起 —— 打开「接管官方消息轨」开关即可） |
+> | 0.1.2-alpha.2+ / 0.1.2-rc.1 | `installSection` | ✅ 正常 | ✅ 可用（未发布修复起 —— 0.2.10 及更早在 0.1.2+ 上取数路径读错快照，轨道解析出 0 轮、实际不渲染；修复后无需额外操作，「接管官方消息轨」开关单独控制是否隐藏官方轨） |
 >
 > - **settings 自动适配**：插件按宿主 DSH 版本自动选用注册 API——0.1.2+ 用 `installSection`，0.1.0-rc.7 / 0.1.1-rc.x 用 `register`——同一份插件在 **0.1.0-rc.7 ~ 0.1.2-rc.1** 都能加载并设置开关。
 > - **消息轨（定位条）**：DSH 0.1.2 起官方原生新增右缘 TurnNavigator，与本插件定位条功能重叠。**v0.2.10 起提供「接管官方消息轨」开关**：打开即隐藏官方右缘轨，由本插件定位条接管——可贴左缘或右缘镜像，样式可选「横线 / 圆点」，另有独立的「外圈」开关。**该开关默认关闭**，不替用户改动官方行为。
@@ -164,7 +164,7 @@ dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat
 2. **修复折叠残留标记（issue #12 疑似根因）**：`applyFold` 只遍历本轮判定要折叠的行，若某行从「整行折叠（whole）」变成「只折叠思考（inline）」，旧的 `data-tidychat-folded` 不会被移除 → 该行被 CSS 永久隐藏（含总结正文），直到刷新页面。现在每轮重算前先统一清理标记再按本轮判定重打（同任务内完成，不闪烁）；同时修复「关闭 fold 开关后先前折叠的行仍隐藏」。
 3. **修复悬停摘要文字色被换肤覆盖**（PR #9，issue #11）：`.tidychat-nav-tip` 双类名 + `!important`，`applyTipContrast()` 的 token 读取源由 `documentElement` 改为 `document.body`（DSH 的 `--dsw-alias-*` token 定义在 body，html 上读不到）。
 
-### 0.2.10（本次）—— 接管官方消息轨 + 消息轨样式完善
+### 0.2.10（已发布）—— 接管官方消息轨 + 消息轨样式完善
 
 1. **新增「接管官方消息轨」开关**（默认关）：在 **DSH 0.1.2+** 上隐藏官方原生右缘 TurnNavigator，由本插件消息轨接管。至此**消息轨在 0.1.0-rc.7 ~ 0.1.2-rc.1 全区间可用**。
    - 实现是**隐藏而非卸载**：宿主没有提供原生开关，插件不能阻止官方组件挂载。隐藏通过根元素属性 `data-tidychat-hide-official-nav` + CSS 规则完成，React 重渲染不会还原；关闭时属性被移除，官方轨立即恢复。
@@ -177,6 +177,14 @@ dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat
 > 📌 **备用主线 `shadow/main`**：指向 `upstream/main`（v0.2.9 纯净主线，已 `--unset-upstream` 避免误推）。用途：`feat/rail-mirror-and-dots`（左右镜像 + 圆点，5 个提交）尚未被上游接受，若最终无法合并，可从这条纯净主线重新出发。
 >
 > ⚠️ **实测：整提交 cherry-pick 到 `shadow/main` 需要手工解冲突**（`src/index.ts` 2 处、`src/client/index.ts` 9 处）—— 因为本次改动与该 feature 在同一文件内交错。冲突都是小块的（配置字段、设置项、绘制循环附近），但**不是**一键可摘。若确需「无 feature + 官方接管」的版本，建议以 `shadow/main` 为起点手工移植接管开关的四个部分：CSS 规则、`applyOfficialNavTakeover()`、两个配置字段（`hideOfficialNav` / `navRing`）、一个设置项。
+
+### 未发布 —— 修复消息轨在 DSH 0.1.2+ 不渲染（取数路径）
+
+1. **根因**：消息轨的用户轮来自 `session.getSnapshot()`，但 DSH 0.1.2+ 的这个快照只返回**会话控制状态**（`queue` / `running` / `hasMore` / `openState`…），**没有消息节点字段**。插件仍按旧假设读 `snapshot.nodes` → `Array.isArray()` 为 false → 解析出 0 个用户轮 → 组件 `return null`，**零 DOM、控制台无报错**。这就是 0.2.6 起「左缘定位条暂缓」的真实原因（当时误判为「与官方轨冲突 / 依赖 react-dom」）。
+2. **修复**：取数路径改为 `binding.eventSource.getSnapshot().entries`——会话事件窗（`SessionEventSource`），与官方 TurnNavigator 及生态内其它消息轨插件同源。用户轮判定 = 条目 `type === 'event'` 且 `event.type === 'user/message'` 且 `data.source.kind === 'user'`（**必须按 source 过滤**：agent 注入的 system prompt、skill 目录、后台任务通知都复用 `user/message` 这个事件类型）。悬停卡时间直接用事件的 `time`（Unix 毫秒）。
+3. **订正 0.2.10 的结论**：0.2.10 写「至此消息轨在 0.1.0-rc.7 ~ 0.1.2-rc.1 全区间可用」——不成立。0.1.2+ 上轨道**从未渲染过**（取数路径 bug），本次修复后该结论才真正成立。
+4. **默认值订正**：`navigator` / `autoLoad` 的 schema 默认值由 `false` 改为 `true`（新装用户默认即可见轨道）。**已装用户不受影响**：schemastery 会把旧默认值物化进设置，历史配置里的 `navigator: false` 需要到「设置 > 插件配置」手动打开。
+5. **验证**：在 194 个真实会话日志上回放事件窗解析（0 解码失败），最大 63 个用户轮；同一份数据下旧实现恒为 0 轮。
 
 ### 下一版本（候选）
 

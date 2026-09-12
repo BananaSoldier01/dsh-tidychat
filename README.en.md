@@ -6,7 +6,7 @@
 > | DSH version | settings registration | Fold / divider / auto-load | Navigation rail |
 > | --- | --- | --- | --- |
 > | 0.1.0-rc.7 / 0.1.1-rc.x | `register` (v0.2.7+) / `installSettingsSection` (v0.2.5) | ✅ fold/divider/auto-load work (v0.2.8+ falls back to anchor-key; v0.2.7 doesn't) | ✅ available (navigator on; old slot + anchors present; no official rail to take over) |
-> | 0.1.2-alpha.2+ / 0.1.2-rc.1 | `installSection` | ✅ works | ✅ available since v0.2.10 — just turn on "Take over the official rail" |
+> | 0.1.2-alpha.2+ / 0.1.2-rc.1 | `installSection` | ✅ works | ✅ available since the unreleased fix — on v0.2.10 and earlier the rail read the wrong snapshot on 0.1.2+ and resolved 0 turns, so it never rendered; the fix needs no extra step ("Take over the official rail" only controls hiding the host rail) |
 >
 > - **Settings auto-adapts**: the plugin picks the registration API per host version — `installSection` on 0.1.2+, `register` on 0.1.0-rc.7 / 0.1.1-rc.x — so the same plugin loads and registers its toggles across **DSH 0.1.0-rc.7 → 0.1.2-rc.1**.
 > - **Navigation rail**: since DSH 0.1.2 the host ships its own right-edge TurnNavigator, which overlaps this plugin's rail. **v0.2.10 adds a "Take over the official rail" toggle** (default **off**): turning it on hides the official right-edge rail so this plugin's rail takes over — dockable left or right (right mirrors it), with a "line / dot" display style and a separate "ring" toggle. The toggle is off by default, so nobody's official behaviour changes silently.
@@ -164,7 +164,7 @@ No functional changes — npm package content only: `README.en.md` bundled, `rep
 2. **Stale fold mark fix (likely root cause of issue #12)**: `applyFold` only walked the rows it folds *this* pass, so a row that flipped from "fold whole" to "fold think only" kept its old `data-tidychat-folded` and stayed hidden (including the final answer) until a page reload. Each pass now clears the marks first, then re-applies them (same JS task, no flicker). Also fixes hidden rows staying hidden after turning fold off.
 3. **Tooltip text color fix** (PR #9, issue #11): double-class + `!important` on `.tidychat-nav-tip`, and `applyTipContrast()` now reads tokens from `document.body` (DSH defines `--dsw-alias-*` on body, not html).
 
-### 0.2.10 (current) — Take over the official rail + rail style polish
+### 0.2.10 (released) — Take over the official rail + rail style polish
 
 1. **New "Take over the official rail" toggle** (default **off**): hides the host's native right-edge TurnNavigator on **DSH 0.1.2+** so this plugin's rail takes over. The rail is now usable across the whole **0.1.0-rc.7 → 0.1.2-rc.1** range.
    - It **hides rather than unmounts**: the host exposes no native switch, so the plugin cannot stop the official component from mounting. Hiding is done with a root attribute (`data-tidychat-hide-official-nav`) plus a CSS rule, which React re-renders cannot undo; turning the toggle off removes the attribute and the official rail reappears immediately.
@@ -177,6 +177,14 @@ No functional changes — npm package content only: `README.en.md` bundled, `rep
 > 📌 **Spare mainline `shadow/main`**: points at `upstream/main` (the pristine v0.2.9 mainline; `--unset-upstream` so it cannot be pushed by accident). Purpose: `feat/rail-mirror-and-dots` (left/right mirroring + dot style, 5 commits) has not been accepted upstream — if it never merges, this is the clean mainline to restart from.
 >
 > ⚠️ **Measured: cherry-picking the whole commit onto `shadow/main` needs manual conflict resolution** (2 blocks in `src/index.ts`, 9 in `src/client/index.ts`) — the 0.2.10 changes interleave with that feature inside the same files. The conflicts are all small (config fields, a settings entry, around the drawing loop), but it is **not** a one-command operation. If you need a "no feature + official-rail takeover" build, start from `shadow/main` and port the takeover by hand: the CSS rule, `applyOfficialNavTakeover()`, the two config fields (`hideOfficialNav` / `navRing`), and one settings entry.
+
+### Unreleased — fix the rail never rendering on DSH 0.1.2+ (data path)
+
+1. **Root cause**: the rail built its user-turn list from `session.getSnapshot()`, but on DSH 0.1.2+ that snapshot only returns **session control state** (`queue` / `running` / `hasMore` / `openState`…) and **has no message-node field**. The plugin still read `snapshot.nodes` → `Array.isArray()` false → 0 user turns → the component returned `null`: **no DOM at all, and no console error**. This is the real reason behind the "left rail paused" note that has been in the README since 0.2.6 (which misattributed it to "conflicts with the official rail / depends on react-dom").
+2. **Fix**: the rail now reads `binding.eventSource.getSnapshot().entries` — the session event window (`SessionEventSource`), the same source the official TurnNavigator and other ecosystem rail plugins use. A user turn = an entry with `type === 'event'`, an inner `event.type === 'user/message'`, and `data.source.kind === 'user'` (**the source filter is required**: agent-injected content — the system prompt, the skill catalog, background-job notices — reuses the very same `user/message` event type). Tooltip times come straight from the event's `time` (Unix ms).
+3. **Correcting the 0.2.10 claim**: 0.2.10 states "the rail is now usable across the whole 0.1.0-rc.7 → 0.1.2-rc.1 range" — that was not true. On 0.1.2+ the rail **never rendered** (data-path bug); only after this fix does that claim hold.
+4. **Defaults corrected**: the `navigator` / `autoLoad` schema defaults changed from `false` to `true`, so a fresh install shows the rail out of the box. **Existing installs are unaffected**: schemastery materialises the old defaults into settings, so a historical `navigator: false` must be turned on in Settings → Plugin configuration.
+5. **Verification**: the event-window parser was replayed over 194 real session logs (0 decode failures), the largest with 63 user turns; on the same data the old implementation always resolved 0 turns.
 
 ### Next (candidates)
 

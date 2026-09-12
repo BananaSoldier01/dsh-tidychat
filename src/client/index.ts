@@ -846,6 +846,49 @@ export function apply(ctx: any): void {
     return Array.from((container ?? document).querySelectorAll<Element>(selector))
   }
 
+  // ===== 消息轨共享采集 helper（主链路与诊断报告共用，保证口径一致）=====
+
+  // DOM 侧用户行：'user'（开新回合）+ 'steering'（运行中插队，宿主渲染为独立 kind）二者同视。
+  // 漏掉 steering 会让「圆点数 > DOM 行数」→ 尾部圆点映射到不存在的行（RAIL-ROOT-CAUSE-ANALYSIS §6 根因）。
+  const railRows = (): Element[] => scopedRows('[data-chat-anchor-key]').filter((r) => {
+    const k = r.getAttribute('data-chat-flow-kind')
+    return k === 'user' || k === 'steering'
+  })
+
+  // 事件侧用户轮：user/message + source.kind === 'user'，且只统计 append 表面事件
+  //（对齐宿主 isAppendSurfaceEvent：replace/重写事件不会新增 DOM 行，计入会造成圆点与行错位；
+  // undefined 容忍旧宿主不带 surfaceOp 标记的情况）。
+  const collectUserEvents = (snapshot: any): Array<{ seq: number; time: number; summary: string }> => {
+    const out: Array<{ seq: number; time: number; summary: string }> = []
+    if (snapshot === null || snapshot === undefined || !Array.isArray(snapshot.entries)) return out
+    for (const entry of snapshot.entries) {
+      if (entry === null || entry === undefined || entry.type !== 'event') continue
+      const ev = entry.event
+      if (ev === null || ev === undefined || ev.type !== 'user/message') continue
+      const op = (ev as any).surfaceOp
+      if (op !== undefined && op !== 'append') continue
+      const src = ev.data?.source
+      if (src !== undefined && src !== null && src.kind !== 'user') continue
+      let text = ''
+      if (Array.isArray(ev.data?.content)) {
+        for (const block of ev.data.content) {
+          if (block !== null && block !== undefined && typeof block.text === 'string') text += block.text
+        }
+      }
+      out.push({ seq: ev.seq, time: ev.time, summary: String(text).trim().slice(0, 120) })
+    }
+    return out
+  }
+
+  // 摘要回退：行内隐藏文本（hover actions/时间）会被 textContent 带上，innerText 排除不可见内容；
+  // 仅在缓存重建/渲染期调用（非滚动热路径），布局成本可接受。
+  const fallbackSummary = (el: Element): string => {
+    try {
+      const t = (el as HTMLElement).innerText ?? ''
+      return t.replace(/\s+/g, ' ').trim().slice(0, 120)
+    } catch { return String(el.textContent ?? '').trim().slice(0, 120) }
+  }
+
   const isLoadOlderButton = (b: Element): boolean => {
     const t = (b.textContent || '').trim()
     // 仅匹配会话专属文案；移除泛化的「加载更多 / Load more」，避免误点其它列表的同名按钮
@@ -1036,17 +1079,14 @@ export function apply(ctx: any): void {
   })
 
   // ===== 一键报告问题：组装诊断报告 → 复制剪贴板 → 打开预填 GitHub issue =====
-  // 会话快照中的用户轮次统计（与 DOM 轮次对照，用于诊断「快照/DOM 不同步」）
+  // 会话快照中的用户轮次统计（与 DOM 轮次对照，用于诊断「快照/DOM 不同步」）——
+  // 复用主链路 collectUserEvents，保证口径一致（surfaceOp append + source.kind 过滤）
   const snapshotUserTurns = (): number => {
     if (activeSessionId === null) return -1
     try {
       const binding = ctx.sessions.binding(activeSessionId)
-      if (binding === undefined || binding.session === undefined) return -1
-      const snap = binding.session.getSnapshot()
-      if (snap === null || snap === undefined || !Array.isArray(snap.nodes)) return -1
-      let n = 0
-      for (const node of snap.nodes) if (node !== null && node !== undefined && node.kind === 'user') n += 1
-      return n
+      if (binding === undefined || binding.eventSource === undefined) return -1
+      return collectUserEvents(binding.eventSource.getSnapshot()).length
     } catch { return -1 }
   }
   // 异常检测（报告正文「系统检测」段与标题共用）
@@ -1058,14 +1098,14 @@ export function apply(ctx: any): void {
     if (!config.autoLoad) issues.push('自动加载已关闭，历史窗口偏小')
     if (config.autoLoad && findLoadOlderButton() !== null && st?.status === 'idle') issues.push('自动加载开启但未在加载，且仍有更早历史未加载')
     const snapTurns = snapshotUserTurns()
-    const domTurns = scopedRows('[data-chat-anchor-key]').filter((r) => r.getAttribute('data-chat-flow-kind') === 'user').length
+    const domTurns = railRows().length
     if (snapTurns >= 0 && snapTurns !== domTurns) issues.push(`会话快照 ${snapTurns} 轮 / DOM ${domTurns} 轮不一致（可能加载中或 DOM 更新滞后）`)
     return issues
   }
   const buildReport = (tags: ReadonlyArray<string>, issues: ReadonlyArray<string>): string => {
     const st = activeSessionId !== null ? governor.get(activeSessionId) : undefined
     const rows = scopedRows('[data-chat-anchor-key]')
-    const turns = rows.filter((r) => r.getAttribute('data-chat-flow-kind') === 'user').length
+    const turns = railRows().length
     const snapTurns = snapshotUserTurns()
     const hasMore = findLoadOlderButton() !== null
     return [
@@ -1395,16 +1435,21 @@ export function apply(ctx: any): void {
     const r = host.getBoundingClientRect()
     if (r.width < 10 || r.height < 10) return null
     // 会话内容居中且 max-width 748px：宽窗口时左右有留白，窄窗口时内容铺满、留白归零，
-    // 定位条会压到正文/输入框。测内容真实边缘与容器边缘的间距（gutter），不足定位条宽度即隐藏。
-    // navSide = right 时镜像贴右缘：left 取容器右缘内收一个轨宽，gutter 测右缘留白。
-    const content = scopedRows('[data-composer-card]')[0] ?? scopedRows('[data-chat-anchor-key]')[0]
-    const cRect = content !== null ? content.getBoundingClientRect() : null
+    // 定位条会压到正文/输入框。测「最贴目标侧边缘的内容元素」与容器边缘的间距（gutter），
+    // 不足定位条宽度即隐藏。参照候选 = 输入框卡片 + 首个/末个会话行：输入框可能比消息
+    // 内容更宽（更贴边），只取单一参照会低估 gutter 导致右缘轨被误隐藏。
+    const composer = scopedRows('[data-composer-card]')[0]
+    const chatRows = scopedRows('[data-chat-anchor-key]')
+    const candidates = [composer, chatRows[0], chatRows[chatRows.length - 1]].filter((x): x is Element => x !== null && x !== undefined)
+    const rects = candidates.map((el) => el.getBoundingClientRect())
     if ((config.navSide ?? 'left') === 'right') {
-      const gutter = cRect !== null ? Math.max(0, r.right - cRect.right) : r.width
+      const maxRight = rects.length > 0 ? Math.max(...rects.map((e) => e.right)) : r.right
+      const gutter = Math.max(0, r.right - maxRight)
       return { left: r.right - (NAV_RAIL_WIDTH - 4), top: r.top + r.height * 0.5, gutter }
     }
-    const gutter = cRect !== null ? Math.max(0, cRect.left - r.left) : r.width
-    return { left: r.left, top: r.top + r.height * 0.5, gutter }
+    const minLeft = rects.length > 0 ? Math.min(...rects.map((e) => e.left)) : r.left
+    const gutterL = Math.max(0, minLeft - r.left)
+    return { left: r.left, top: r.top + r.height * 0.5, gutter: gutterL }
   }
 
   const hhmm = (ms: number): string => {
@@ -1461,7 +1506,9 @@ export function apply(ctx: any): void {
       // scrollH 记录缓存构建时的容器内容高度——折叠/加载会改变布局（行数可能不变但位置变），用它判定重算。
       const rowCacheRef = React.useRef<{ rows: Element[]; tops: number[]; count: number; scrollH: number }>({ rows: [], tops: [], count: -1, scrollH: -1 })
 
-      const userRows = (): Element[] => scopedRows('[data-chat-anchor-key]').filter((r) => r.getAttribute('data-chat-flow-kind') === 'user')
+      // 用户行 = 'user'（开新回合）+ 'steering'（运行中插队，宿主渲染为独立 kind）二者同视，
+      // 与主链路/诊断共用模块级 railRows（口径统一）
+      const userRows = (): Element[] => railRows()
       const rebuildRowCache = (count: number, scrollH: number): void => {
         const rows = userRows()
         const container = findScrollContainer()
@@ -1524,9 +1571,9 @@ export function apply(ctx: any): void {
       const redraw = (): void => {
         const canvas = canvasRef.current
         if (canvas === null) return
-        const n = users.length
+        const n = turns.length
         if (n === 0) return
-        const H = railHeight(users.length)
+        const H = railHeight(turns.length)
         const W = NAV_RAIL_WIDTH - 8
         const dpr = window.devicePixelRatio || 1
         if (canvas.width !== Math.round(W * dpr) || canvas.height !== Math.round(H * dpr)) {
@@ -1624,8 +1671,12 @@ export function apply(ctx: any): void {
         }
         if (typeof sid === 'undefined' || sid === null) return
         const binding = ctx.sessions.binding(sid)
-        if (binding === undefined || binding.session === undefined) return
-        const face = binding.session
+        // 事件流订阅 = 触发器 + 摘要/时间增强源，不是事实源（圆点身份/数量以 DOM 行 railRows 为准）。
+        // 事件增减与行增减强相关（新消息先落账再渲染行），订阅即「DOM 可能变了」信号 → 重渲染 → 从 DOM 重算 turns。
+        // （历史备注：0.1.2+ 的 session.getSnapshot() 只返回 queue/running 等控制字段，旧路径按 snapshot.nodes
+        // 取数会解析出 0 个用户轮 → 定位条整个不渲染，见 RAIL-ROOT-CAUSE-ANALYSIS §0。）
+        if (binding === undefined || binding.eventSource === undefined) return
+        const face = binding.eventSource
         const pull = () => {
           let snap: any = null
           try { snap = face.getSnapshot() } catch { snap = null }
@@ -1645,11 +1696,18 @@ export function apply(ctx: any): void {
           resizeObs.observe(container)
         }
         window.addEventListener('resize', refresh)
-        // 滚动监听：检测「阅读区顶部」的当前 turn（rAF 节流）
+        // 滚动监听：检测「阅读区顶部」的当前 turn（rAF 节流）。
+        // 顺带自检 scrollH 漂移（图片/代码块懒加载会改变行高）：过期几何 = 同类错位的第三张脸，
+        // 漂移即重建行缓存再检测，整数比较每帧成本≈0。
         let scrollRaf = 0
         const onScroll = (): void => {
           if (scrollRaf !== 0) return
-          scrollRaf = requestAnimationFrame(() => { scrollRaf = 0; detectCurrent() })
+          scrollRaf = requestAnimationFrame(() => {
+            scrollRaf = 0
+            const c = findScrollContainer()
+            if (c !== null && c.scrollHeight !== rowCacheRef.current.scrollH) rebuildRowCache(turns.length, c.scrollHeight)
+            detectCurrent()
+          })
         }
         if (container !== null) container.addEventListener('scroll', onScroll, { passive: true })
         return () => {
@@ -1664,38 +1722,34 @@ export function apply(ctx: any): void {
         }
       }, [props.sessionId])
 
-      const users: Array<{ seq: number; time: number; summary: string }> = []
-      if (snapshot !== null && snapshot !== undefined && Array.isArray(snapshot.nodes)) {
-        for (const node of snapshot.nodes) {
-          if (node === null || node === undefined || node.kind !== 'user') continue
-          let text = ''
-          if (Array.isArray(node.content)) {
-            for (const block of node.content) {
-              if (block !== null && block !== undefined && typeof block.text === 'string') text += block.text
-            }
-          }
-          users.push({ seq: node.seq, time: node.time, summary: String(text).trim().slice(0, 120) })
-        }
-      }
+      // DOM 单一事实源：圆点身份/数量/顺序来自 DOM 行（railRows），事件流仅作摘要/时间增强。
+      // 数量相等时按序配对（事件序 = log seq 序 = DOM 序）；不等（加载中/replace 事件/窗口边缘瞬态）
+      // 时回退行内文本自愈——构造上不可能出现「圆点无对应行」的死点（RAIL-ROOT-CAUSE-ANALYSIS §6）。
+      const rows = railRows()
+      const events = collectUserEvents(snapshot)
+      const turns: Array<{ el: Element; summary: string; time: number | null }> = events.length === rows.length
+        ? rows.map((el, i) => ({ el, summary: events[i]!.summary, time: events[i]!.time as number | null }))
+        : rows.map((el) => ({ el, summary: fallbackSummary(el), time: null }))
 
       // 每轮渲染后：行数或内容高度变化（折叠/加载）→ 重建行缓存 → 检测当前 turn → 重绘 canvas
       React.useEffect(() => {
         const container = findScrollContainer()
         const scrollH = container !== null ? container.scrollHeight : 0
-        if (rowCacheRef.current.count !== users.length || rowCacheRef.current.scrollH !== scrollH) {
-          rebuildRowCache(users.length, scrollH)
+        if (rowCacheRef.current.count !== turns.length || rowCacheRef.current.scrollH !== scrollH) {
+          rebuildRowCache(turns.length, scrollH)
         }
         detectCurrent()
         redraw()
       })
 
       const jumpTo = (index: number): void => {
-        const target = rowCacheRef.current.rows[index]
-        if (target === undefined) return
+        // 元素即身份：turns 由 DOM 行生成，index 必有对应行；rowCacheRef 仅剩 detectCurrent 在用
+        const t = turns[index]
+        if (t === undefined) return
         const container = findScrollContainer()
         if (container === null) return
         const cRect = container.getBoundingClientRect()
-        const tRect = target.getBoundingClientRect()
+        const tRect = t.el.getBoundingClientRect()
         // 用户消息出现在阅读区顶部（header 之下），而非 viewport 中心或埋进 header
         container.scrollTo({ top: (tRect.top - cRect.top) + container.scrollTop - HEADER_OFFSET, behavior: 'smooth' })
       }
@@ -1709,9 +1763,9 @@ export function apply(ctx: any): void {
           if (p === null || canvasRef.current === null) return
           const canvas = canvasRef.current
           const rect = canvas.getBoundingClientRect()
-          const idx = indexFromY(p.y - rect.top, layoutPositions(users.length, hover, railHeight(users.length)))
+          const idx = indexFromY(p.y - rect.top, layoutPositions(turns.length, hover, railHeight(turns.length)))
           if (idx !== hover) setHover(idx)
-          const u = users[idx]
+          const u = turns[idx]
           if (u !== undefined) {
             // 右缘镜像：tip.x 记鼠标左侧 18px，渲染改用 right 定位（left+translateX(-100%)
             // 会把收缩适配宽度压到「视口宽-left」≈40px，泡泡被挤成一条细窄条）
@@ -1732,7 +1786,7 @@ export function apply(ctx: any): void {
         const canvas = canvasRef.current
         if (canvas !== null) {
           const rect = canvas.getBoundingClientRect()
-          const idx = indexFromY(ev.clientY - rect.top, layoutPositions(users.length, hover, railHeight(users.length)))
+          const idx = indexFromY(ev.clientY - rect.top, layoutPositions(turns.length, hover, railHeight(turns.length)))
           jumpTo(idx)
         }
         try { ev.currentTarget.releasePointerCapture(ev.pointerId) } catch { /* 忽略 */ }
@@ -1745,7 +1799,7 @@ export function apply(ctx: any): void {
       if (pos === null) return null
       // 会话内容左侧留白不足以容纳定位条时隐藏（Codex 同款「空间足够才显示」）
       if (pos.gutter < NAV_RAIL_WIDTH) return null
-      if (users.length === 0) return null
+      if (turns.length === 0) return null
       const style = { left: pos.left + 'px', top: pos.top + 'px' }
       const rail = React.createElement('div', {
         className: 'tidychat-nav-rail',
