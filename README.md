@@ -6,10 +6,10 @@
 > | DSH 版本 | settings 注册 | 折叠/分隔线/自动加载 | 消息轨（定位条） |
 > | --- | --- | --- | --- |
 > | 0.1.0-rc.7 / 0.1.1-rc.x | `register`（v0.2.7+）/ `installSettingsSection`（v0.2.5） | ✅ 折叠/分隔线/自动加载正常（v0.2.8 起回退 anchor-key；v0.2.7 不生效） | ✅ 可用（navigator 开；旧槽 + 锚点均在；旧版无官方轨，无需接管开关） |
-> | 0.1.2-alpha.2+ / 0.1.2-rc.1 | `installSection` | ✅ 正常 | ✅ 可用（未发布修复起 —— 0.2.10 及更早在 0.1.2+ 上取数路径读错快照，轨道解析出 0 轮、实际不渲染；修复后无需额外操作，「接管官方消息轨」开关单独控制是否隐藏官方轨） |
+> | 0.1.2-alpha.2+ / 0.1.2-rc.1 | `installSection` | ✅ 正常 | ✅ 可用（0.3.0 起 —— 0.2.10 及更早在 0.1.2+ 上取数路径读错快照，轨道解析出 0 轮、实际不渲染；修复后无需额外操作，「接管官方消息轨」开关单独控制是否隐藏官方轨） |
 >
 > - **settings 自动适配**：插件按宿主 DSH 版本自动选用注册 API——0.1.2+ 用 `installSection`，0.1.0-rc.7 / 0.1.1-rc.x 用 `register`——同一份插件在 **0.1.0-rc.7 ~ 0.1.2-rc.1** 都能加载并设置开关。
-> - **消息轨（定位条）**：DSH 0.1.2 起官方原生新增右缘 TurnNavigator，与本插件定位条功能重叠。**v0.2.10 起提供「接管官方消息轨」开关**：打开即隐藏官方右缘轨，由本插件定位条接管——可贴左缘或右缘镜像，样式可选「横线 / 圆点」，另有独立的「外圈」开关。**该开关默认关闭**，不替用户改动官方行为。
+> - **消息轨（定位条）**：DSH 0.1.2 起官方原生新增右缘 TurnNavigator，与本插件定位条功能重叠。**0.3.0 起提供「接管官方消息轨」开关**：打开即隐藏官方右缘轨，由本插件定位条接管——可贴左缘或右缘镜像，样式可选「横线 / 圆点」，另有独立的「外圈」开关。**该开关默认关闭**，不替用户改动官方行为。
 >   - ⚠️ 官方轨是**隐藏而非卸载**：宿主未提供原生开关，插件侧无法让官方组件「逻辑关闭」。开启接管后官方组件仍会挂载（DOM 保留），停掉的是绘制、布局、交互与滚动跟随。
 > - **折叠/分隔线**：v0.2.8 起在旧版 DSH 也可用——`data-chat-turn` 缺失时回退到从 `data-chat-anchor-key` 解析 turn 号（v0.2.5 的做法）。v0.2.7 无此回退，故 v0.2.7 在旧版折叠/分隔线不生效（仅自动加载正常）。
 > - **功能重叠**：DSH 0.1.2 起官方原生新增「折叠过程内容 + System prompt」与右缘 TurnNavigator，与插件的 fold / 消息轨重叠。
@@ -45,13 +45,13 @@
   <img src="./assets/fold-expanded.png" width="92%" alt="展开：恢复完整过程">
 </p>
 
-**消息轨（Canvas minimap）**：可贴左缘或右缘，样式可选横线 / 圆点，外圈可独立开关。下图为在无官方右缘 TurnNavigator 的旧版 DSH 上的运行效果（v0.2.10 起在 DSH 0.1.2+ 打开「接管官方消息轨」开关后同样可用）。
+**消息轨（Canvas minimap）**：可贴左缘或右缘，样式可选横线 / 圆点，外圈可独立开关。下图为在无官方右缘 TurnNavigator 的旧版 DSH 上的运行效果（0.3.0 起在 DSH 0.1.2+ 打开「接管官方消息轨」开关后同样可用）。
 
 <p align="center">
   <img src="./assets/navigator.png" width="92%" alt="消息轨与悬停摘要">
 </p>
 
-**设置面板**：四个功能独立开关（含「接管官方消息轨」）+ 消息轨位置/样式/外圈 + 现象标签 + 一键「生成诊断报告并提交」，改动即时生效。
+**设置面板**：5 个独立开关（折叠 / 分隔线 / 定位条 / 接管官方消息轨 / 智能加载更早历史）+ 消息轨显示位置 · 样式 · 外圈 + 配色（调色盘）+ 首次引导（含「重新显示首次引导」）+ 现象标签 + 一键「生成诊断报告并提交」，改动即时生效。
 
 <p align="center">
   <img src="./assets/settings.png" width="92%" alt="设置面板">
@@ -66,7 +66,7 @@
 dsh plugin --profile web add @bananasoldier01/dsh-tidychat
 
 # 方式 2：从 GitHub 安装（推荐钉版本，可复现）
-dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat.git#v0.2.10
+dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat.git#v0.3.0
 ```
 
 安装后重启 dsh web + 硬刷新（Cmd+Shift+R）。
@@ -80,7 +80,7 @@ dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat
 dsh plugin --profile web update @bananasoldier01/dsh-tidychat
 
 # 方式 B：装的是某个 tag，改钉到新 tag 重新 add
-dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat.git#v0.2.10
+dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat.git#v0.3.0
 ```
 
 更新后同样重启 dsh web + 硬刷新。
@@ -164,27 +164,30 @@ dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat
 2. **修复折叠残留标记（issue #12 疑似根因）**：`applyFold` 只遍历本轮判定要折叠的行，若某行从「整行折叠（whole）」变成「只折叠思考（inline）」，旧的 `data-tidychat-folded` 不会被移除 → 该行被 CSS 永久隐藏（含总结正文），直到刷新页面。现在每轮重算前先统一清理标记再按本轮判定重打（同任务内完成，不闪烁）；同时修复「关闭 fold 开关后先前折叠的行仍隐藏」。
 3. **修复悬停摘要文字色被换肤覆盖**（PR #9，issue #11）：`.tidychat-nav-tip` 双类名 + `!important`，`applyTipContrast()` 的 token 读取源由 `documentElement` 改为 `document.body`（DSH 的 `--dsw-alias-*` token 定义在 body，html 上读不到）。
 
-### 0.2.10（已发布）—— 接管官方消息轨 + 消息轨样式完善
+### 0.3.0（已发布，本次）—— 消息轨在 DSH 0.1.2+ 恢复渲染 + 接管/样式/首次引导
 
-1. **新增「接管官方消息轨」开关**（默认关）：在 **DSH 0.1.2+** 上隐藏官方原生右缘 TurnNavigator，由本插件消息轨接管。至此**消息轨在 0.1.0-rc.7 ~ 0.1.2-rc.1 全区间可用**。
-   - 实现是**隐藏而非卸载**：宿主没有提供原生开关，插件不能阻止官方组件挂载。隐藏通过根元素属性 `data-tidychat-hide-official-nav` + CSS 规则完成，React 重渲染不会还原；关闭时属性被移除，官方轨立即恢复。
-   - 选择器不硬编码官方 CSS Module 的 hash（`eGxaPq_*` 随构建变化），改用「局部名子串 + 结构 + 内联 `--turn-natural-position` 变量」三重锚定。
-   - 开启后官方组件仍在挂载状态，但绘制、布局、交互与滚动跟随全部停止（隐藏只减少工作量，不增加开销）。
-2. **新增「外圈」样式开关**（默认关）：在当前轮与悬停轮的标记外描一圈强调色（1px 描边、外扩 2px），横线取胶囊形、圆点取正圆环。颜色跟随现有「强调色」，不新增配色项。
-3. **修正「竖条」误标为「横线」**：显示样式选项一直写作「竖条」，但绘制代码是 `fillRect(x, y, width, height)` 且宽（14–26px）远大于高（3px）——**从来就是横线**，仓库内也从未有过竖线绘制元件。本次把 UI 选项、注释与设置提示统一改为「横线」，与 README「条状导航」的既有描述一致。两档样式（横线 / 圆点）的绘制代码一行未改。
-4. **订正文档中不成立的「依赖 react-dom」结论**：`git grep react-dom` 在源码中零命中，构建产物唯一的 `require()` 实参是 `react`；定位条只用 `useState/useRef/useEffect/createElement`。该说法源自 v0.2.6 之前就已删除的一套临时 DOM 实现，属陈旧误诊，本次一并更正。
+> 本版合并了原计划作为 `0.2.10` 发布的内容（PR #10）、取数路径修复，以及维护者追加的首次引导等改动。`0.2.10` 从未发布到 npm，其内容随本版一起发布。
 
-> 📌 **备用主线 `shadow/main`**：指向 `upstream/main`（v0.2.9 纯净主线，已 `--unset-upstream` 避免误推）。用途：`feat/rail-mirror-and-dots`（左右镜像 + 圆点，5 个提交）尚未被上游接受，若最终无法合并，可从这条纯净主线重新出发。
->
-> ⚠️ **实测：整提交 cherry-pick 到 `shadow/main` 需要手工解冲突**（`src/index.ts` 2 处、`src/client/index.ts` 9 处）—— 因为本次改动与该 feature 在同一文件内交错。冲突都是小块的（配置字段、设置项、绘制循环附近），但**不是**一键可摘。若确需「无 feature + 官方接管」的版本，建议以 `shadow/main` 为起点手工移植接管开关的四个部分：CSS 规则、`applyOfficialNavTakeover()`、两个配置字段（`hideOfficialNav` / `navRing`）、一个设置项。
+**根因修复：0.1.2+ 上消息轨其实从未渲染过**
 
-### 未发布 —— 修复消息轨在 DSH 0.1.2+ 不渲染（取数路径）
+1. **取数路径**：用户轮原先来自 `session.getSnapshot().nodes`，但 DSH 0.1.2+ 的该快照只返回**会话控制状态**（`queue` / `running` / `hasMore` / `openState`…），没有消息节点字段 → 解析出 0 个用户轮 → 组件 `return null`（**零 DOM、控制台无报错**）。现改为读会话**事件窗** `binding.eventSource.getSnapshot().entries`：条目 `type === 'event'` 且 `event.type === 'user/message'` 且 `data.source.kind === 'user'`（**必须按 source 过滤**——system prompt、skill 目录、后台任务通知都复用同一个 `user/message` 事件类型）。
+   - 同时订正 0.2.6 起「左缘定位条暂缓」的误判：真实原因既不是「与官方轨冲突」，也不是「依赖 react-dom」（源码中该依赖零引用，产物唯一的 `require()` 实参是 `react`），而是上面这条静默失效。
+2. **DOM 作单一事实源**：圆点的身份/数量/顺序取自 `data-chat-anchor-key` 行，事件流降级为「触发器 + 摘要/时间增强」；行采集器改认 `user | steering`（宿主把 agent 运行中用户插队渲染为 `steering`，漏掉会造成圆点与行错位：尾部点不动、滚到底当前轮高亮停在倒数第三）；补 `surfaceOp === 'append'` 过滤对齐宿主，诊断报告与性能日志复用同一口径。
+3. **几何健壮性**：`measurePos` 的 gutter 参照改为「输入框卡片 + 首个/末个会话行」取最贴边者（防留白误判把轨隐藏）；滚动 rAF 内自检 `scrollHeight` 漂移并重建行缓存（懒加载图片/代码块改变行高时消除过期几何）。
 
-1. **根因**：消息轨的用户轮来自 `session.getSnapshot()`，但 DSH 0.1.2+ 的这个快照只返回**会话控制状态**（`queue` / `running` / `hasMore` / `openState`…），**没有消息节点字段**。插件仍按旧假设读 `snapshot.nodes` → `Array.isArray()` 为 false → 解析出 0 个用户轮 → 组件 `return null`，**零 DOM、控制台无报错**。这就是 0.2.6 起「左缘定位条暂缓」的真实原因（当时误判为「与官方轨冲突 / 依赖 react-dom」）。
-2. **修复**：取数路径改为 `binding.eventSource.getSnapshot().entries`——会话事件窗（`SessionEventSource`），与官方 TurnNavigator 及生态内其它消息轨插件同源。用户轮判定 = 条目 `type === 'event'` 且 `event.type === 'user/message'` 且 `data.source.kind === 'user'`（**必须按 source 过滤**：agent 注入的 system prompt、skill 目录、后台任务通知都复用 `user/message` 这个事件类型）。悬停卡时间直接用事件的 `time`（Unix 毫秒）。
-3. **订正 0.2.10 的结论**：0.2.10 写「至此消息轨在 0.1.0-rc.7 ~ 0.1.2-rc.1 全区间可用」——不成立。0.1.2+ 上轨道**从未渲染过**（取数路径 bug），本次修复后该结论才真正成立。
-4. **默认值订正**：`navigator` / `autoLoad` 的 schema 默认值由 `false` 改为 `true`（新装用户默认即可见轨道）。**已装用户不受影响**：schemastery 会把旧默认值物化进设置，历史配置里的 `navigator: false` 需要到「设置 > 插件配置」手动打开。
-5. **验证**：在 194 个真实会话日志上回放事件窗解析（0 解码失败），最大 63 个用户轮；同一份数据下旧实现恒为 0 轮。
+**消息轨能力**
+
+4. **左右贴边** `navSide: left | right`：右缘整体镜像——横线从右缘向左生长、强调三角指左、悬停摘要卡从鼠标左侧弹出。
+5. **显示样式** `navStyle: bar | dot`：圆点模式保留鱼眼放大与点击跳转。顺带把误标的「竖条」统一改为「横线」（绘制一直是 `fillRect`，宽 14–26px × 高 3px）。
+6. **外圈** `navRing`（默认关）：在当前轮与悬停轮的标记外描一圈强调色（横线取胶囊形、圆点取正圆环），颜色跟随「强调色」。
+7. **接管官方消息轨** `hideOfficialNav`（默认关）：通过根属性 `data-tidychat-hide-official-nav` + CSS 规则**隐藏**（而非卸载）DSH 0.1.2+ 原生右缘 TurnNavigator；官方组件仍在挂载，关闭开关立即恢复。选择器不硬编码 CSS Module hash，改用「局部名子串 + 结构 + 官方每轮必写的内联 `--turn-natural-position`」三重锚定。
+8. **默认值**：`navigator` / `autoLoad` 默认 `true`（新装开箱即有消息轨 + 自动加载更早历史）。**已装用户不受影响**——旧默认值已物化进设置，历史配置里的 `navigator: false` 需到「设置 → 插件配置」手动打开。
+
+**首次引导与体验（维护者追加）**
+
+9. **首次引导**：检测到「插件轨 + 官方轨并存」时，在 `shell.overlay` 弹一次向导——说明**左缘 = 插件 / 右缘 = 官方**，并给三个一键选项：`用插件的（隐藏官方轨）` / `用官方的（关掉插件轨并解除接管）` / `两条都留着`。`navGuideSeen` 记录是否已看过；设置卡片内另有「**重新显示首次引导**」可随时召回。旧版 DSH（无官方轨）不会弹。
+10. **设置项重排与改名**：「显示位置 / 显示样式 / 外圈」移到「定位条」开关正下方；标签「左缘定位条」→「**定位条**」（配置键仍是 `navigator`，不动已发布的键名）。
+11. **跳转滚动缓动**：原生 `behavior:'smooth'` → 自绘 rAF 动画（距离自适应 260–700ms + easeInOutCubic，可被滚轮/触摸/按键打断，尊重 `prefers-reduced-motion`）。
 
 ### 下一版本（候选）
 
@@ -209,8 +212,9 @@ dsh plugin --profile web add link:$PWD
 
 - **自动折叠已完成轮次**：隐藏思考、工具调用与中间文字，只保留最终结论，控制条含处理时长。
 - **思考↔文字分隔线**：在思考行与正文文字之间插入实线，区分过程与结论。
-- **左缘定位条**：聊天区边缘的细窄条状导航，悬停显示摘要、点击跳转到对应消息；贴边与样式可在下方调整。
+- **定位条**（配置键 `navigator`）：聊天区边缘的细窄条状导航，悬停显示摘要、点击跳转到对应消息；贴边与样式在其正下方调整。
 - **接管官方消息轨**（默认关）：隐藏 DSH 0.1.2+ 原生右缘 TurnNavigator，由本插件消息轨接管。**是隐藏而非卸载**，官方轨仍会挂载；定位条本身关闭时请勿开启，否则将没有任何消息轨。
+- **首次引导**：当插件轨与官方轨同时存在时弹一次向导，说明「左缘 = 插件 / 右缘 = 官方」，并可直接三选一（用插件的并隐藏官方 / 用官方的并解除接管 / 两条都留着）；`navGuideSeen` 记录是否已看过，下方另有「**重新显示首次引导**」按钮可随时召回。旧版 DSH（无官方轨）不会弹。
 - **智能加载更早历史**：页面空闲时逐步加载更早记录；检测到页面响应下降时自动暂停，保持长会话流畅，需要时仍可手动继续。
 - **显示位置**：`左缘` / `右缘（镜像）`。右缘时整体镜像——横线从右缘向左生长、强调三角指左、悬停摘要卡从鼠标左侧弹出。
 - **显示样式**：`横线` / `圆点`。两者都保留鱼眼放大（悬停邻域标记放大）与点击跳转。

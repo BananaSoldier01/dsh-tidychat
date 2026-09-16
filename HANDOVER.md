@@ -1,19 +1,19 @@
 # dsh-tidychat 交接文档（HANDOVER）
 
-> 面向：接续开发的新会话 / 新协作者。内容基于 **v0.2.10（feat/rail-mirror-and-dots）** 快照。仓库根目录：`/Users/wuke/工作文件/DeepSeek_Harness/dsh-tidychat`（本机 link 模式开发）。
+> 面向：接续开发的新会话 / 新协作者。内容基于 **v0.3.0（main）** 快照。仓库根目录：`/Users/wuke/工作文件/DeepSeek_Harness/dsh-tidychat`（本机 link 模式开发）。
 
 ---
 
 ## 0. 一句话背景
 
-`dsh-tidychat` 是一个 **DSH（DeepSeek Harness）Web 插件**：把长会话整理成「可扫读、可跳转」的结论流——四个独立开关：自动折叠已完成轮次、思考↔正文分隔线、消息轨（Canvas minimap 全局导航）、智能加载更早历史；消息轨另有「显示位置（左/右）」「显示样式（横线/圆点）」「外圈（关/开）」三项，以及「接管官方消息轨」开关；外加「生成诊断报告并提交 GitHub issue」一键入口。**注意：消息轨在 DSH 0.1.0-rc.7 ~ 0.1.2-rc.1 全区间可用** —— 旧版无官方右缘 TurnNavigator，直接用；**DSH 0.1.2+ 需打开「接管官方消息轨」开关**隐藏官方轨后继任（默认关）。
+`dsh-tidychat` 是一个 **DSH（DeepSeek Harness）Web 插件**：把长会话整理成「可扫读、可跳转」的结论流——四个独立开关：自动折叠已完成轮次、思考↔正文分隔线、消息轨（Canvas minimap 全局导航）、智能加载更早历史；消息轨另有「显示位置（左/右）」「显示样式（横线/圆点）」「外圈（关/开）」三项，以及「接管官方消息轨」开关；外加「生成诊断报告并提交 GitHub issue」一键入口。**注意：消息轨在 DSH 0.1.0-rc.7 ~ 0.1.2-rc.1 全区间可用** —— 旧版无官方右缘 TurnNavigator，直接用；**DSH 0.1.2+ 需打开「接管官方消息轨」开关**隐藏官方轨后继任（默认关）。另有**首次引导**：检测到「插件轨 + 官方轨并存」时弹一次向导（左缘 = 插件 / 右缘 = 官方），可一键二选一（含解除接管）；`navGuideSeen` 记录是否已看过，设置卡片内有「重新显示首次引导」。
 
 - 仓库：https://github.com/BananaSoldier01/dsh-tidychat（owner：BananaSoldier01）
 - fork：https://github.com/drscrewdriver/dsh-tidychat（origin；upstream = 上面的原仓库）
-- npm：`@bananasoldier01/dsh-tidychat`（public，最新 **0.2.9**；0.2.10 尚未发布）
+- npm：`@bananasoldier01/dsh-tidychat`（public，最新 **0.3.0**）
 - 插件索引：**awesome-dsh-plugin 已收录**（PR #3067 合并，session 分类 + 截图），即 dsh-market 源
-- 当前版本线：v0.2.0 → v0.2.10（0.2.0 导航条大版本；0.2.1 配色；0.2.2 提示卡可读性；0.2.3 配色/publish 准备；0.2.4 npm 元数据；0.2.5 Hardening；0.2.6 折叠/分隔线重做；0.2.7 settings API 向后兼容；0.2.8 旧版 DSH 折叠回退；0.2.9 调色盘配色；**0.2.10 接管官方消息轨 + 外圈 + 「竖条」误标修正**）
-- 分支：`feat/rail-mirror-and-dots`（= `upstream/main` v0.2.9 + 镜像/圆点 feature + v0.2.10 改动）；`shadow/main` = 纯净 `upstream/main`，备用主线，见 §4.6
+- 当前版本线：v0.2.0 → v0.3.0（0.2.0 导航条大版本；0.2.1 配色；0.2.2 提示卡可读性；0.2.3 配色/publish 准备；0.2.4 npm 元数据；0.2.5 Hardening；0.2.6 折叠/分隔线重做；0.2.7 settings API 向后兼容；0.2.8 旧版 DSH 折叠回退；0.2.9 调色盘配色；**0.3.0 接管官方消息轨 + 外圈 + 0.1.2+ 取数路径修复 + 首次引导 + 设置项重排 + 跳转滚动缓动**）
+- 分支：PR #10（`feat/rail-mirror-and-dots`）**已并入 main**（merge commit `34bc43c`，0.3.0 发布）；后续维护者改动在其之上（首次引导 / 设置项重排 / 滚动缓动）。`shadow/main` 备用主线已无必要
 
 ---
 
@@ -55,9 +55,12 @@ dsh-tidychat/
 
 - `settings.plugin.item`：**keyed 槽**（rc.7 起由 list 改为 keyed），注册必须 `key: 'tidychat'`（同命名空间），旧 `id` 写法会报 "Failed to load plugins"
 - `conversation.session.header.utilities`：子槽列表，导航条组件注册 `id: 'tidychat-nav'`（order 100）。**已核实 0.1.2-rc.1 仍存在且被渲染**（契约 `dsh-client-ui-conversation/lib/types/client/contract/slots.d.ts`，实现 `lib/client.js` 的 `renderSlot("conversation.session.header.utilities", {})`）
+- `shell.overlay`：**list 槽 / scope root** 的框架级浮层（默认点击穿透；占位者需自行 `pointer-events: auto`，否则会挡住应用）。首次引导组件注册 `id: 'tidychat-guide'`（契约见 `dsh-client-ui-layout`）
 - DOM 锚点：`data-chat-anchor-key`、`data-chat-flow-kind`（user / think / context …）、`data-variant="think"`、`[data-conversation-scroll]`、`[data-composer-card]`
 - `conversationContextKey` = `${kind.length}:${kind}${id}`
 - API：`settingsScope.bind({ namespace: 'tidychat' })`、`ctx.sessions.binding(sid)`、`installSettingsSection(ctx, ns, schema, entry, hooks)`
+- 消息轨取数：`binding.eventSource.getSnapshot().entries`（会话**事件窗** `SessionEventSource`）。**不要用 `session.getSnapshot()` 取消息节点** —— 0.1.2+ 它只返回控制字段（queue/running/hasMore/openState…），没有 `nodes`，按旧假设取数会解析出 0 轮、组件直接 `return null`（零 DOM、无报错）
+- 配置字段（host schema）：`fold` / `divider` / `navigator` / `hideOfficialNav` / `autoLoad` / `navColor`+`navColorCustom`+`navColorLight` / `navAccent`+`navAccentCustom`+`navAccentLight` / `navSide` / `navStyle` / `navRing` / `navGuideSeen`
 - 语义色 token：`--dsw-alias-label-primary/secondary/tertiary/caption`、`--dsw-alias-bg-layer-3`、`--dsw-alias-state-business-primary`、`--dsw-alias-border-l2`
 
 ### 2.1 官方 TurnNavigator 契约（v0.2.10 新增，接管开关用）
