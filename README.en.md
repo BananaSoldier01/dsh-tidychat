@@ -2,7 +2,7 @@
 
 > [中文](./README.md)
 
-> 🧩 A web plugin for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (`dsh`), listed in [awesome-dsh-plugin](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin); the repo carries the `#dsh` · `#dsh-plugin` topics.
+> 🧩 A web plugin for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (`dsh`), listed in [awesome-dsh-plugin](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin).
 
 Turn long DSH conversations into a **scannable, skippable** stream of conclusions.
 

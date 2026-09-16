@@ -2,7 +2,7 @@
 
 > 🌐 [English](./README.en.md)
 
-> 🧩 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（`dsh`）Web 插件，已收录于社区列表 [awesome-dsh-plugin](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin)，仓库挂 `#dsh` · `#dsh-plugin` topic。
+> 🧩 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（`dsh`）Web 插件，已收录于社区列表 [awesome-dsh-plugin](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin)。
 
 让 DSH 的长会话变成**可扫读、可跳转**的结论流。
 
