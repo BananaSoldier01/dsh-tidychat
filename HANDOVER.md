@@ -28,19 +28,20 @@ dsh-tidychat/
 ├── lib/                      # 构建产物（git 跟踪！link 模式实际被服务的就是它）
 │   ├── index.js              # host 半产物（~2.2 kB）
 │   └── client.js             # 浏览器半产物（~72 kB）
-├── assets/                   # 效果图：fold-collapsed/expanded.png、navigator.png、settings.png
+├── assets/                   # 效果图：fold-collapsed/expanded.png、navigator.png（3372×1612）、settings.png（1112×2002，整卡拼接）
 ├── docs/                     # PR 兼容性分析（顶部含 2026-09-11 订正说明）
 ├── screenshots.json          # awesome-dsh-plugin 新约定：本仓库声明截图（相对路径数组）
 ├── scripts/whitelist-patch.sh # DSH ≤ rc.6 的 settings 白名单补丁（幂等）
 ├── .github/ISSUE_TEMPLATE/   # bug_report.yml / feature_request.yml
 ├── cordis.patch.yml          # dsh.bundle 的 patch 声明
-├── package.json              # 0.2.10；dsh.bundle 清单；peerDependencies（dsh-settings/react）
+├── package.json              # 0.3.0；dsh.bundle 清单；peerDependencies（dsh-settings/react）
 │                             # dependencies 仅 schemastery；files 白名单；prepublishOnly=pnpm build
 │                             # ⚠️ 元数据冻结：除 version / description 外不得改动
 ├── tsdown.config.ts          # 构建配置；用 createRequire 读 package.json 版本 → __PLUGIN_VERSION__
 ├── tsconfig.json
-├── README.md                 # 中文默认（npm/GitHub 首页展示）
-├── README.en.md              # 英文全量版；两文件顶部互链
+├── README.md                 # 中文默认（npm/GitHub 首页展示）—— 只放当前能力与用法（~142 行）
+├── README.en.md              # 英文全量版；两文件顶部互链，小节结构逐行对齐
+├── CHANGELOG.md              # 逐版本变更（0.1.1 → 0.3.0）；README 的路线图历史已迁到此处
 ├── HANDOVER.md               # 本文件
 └── LICENSE (MIT)
 ```
@@ -124,7 +125,7 @@ html[data-tidychat-hide-official-nav] nav[class*="_frame"]:has([style*="--turn-n
    - 历史教训（勿重蹈）：0.2.2 前期把半透明白当浅底 → 官方深色「暗底暗字」；后来加 alpha 合成 → 深蓝主题仍误判。最终方案 = 纯 token 跟随 + 不透明时才兜底。
 2. **默认行为不得回归**：用户实测过「官方深/浅、玻璃皮肤、异常 token 皮肤」的明暗正确性，任何改动别破坏「跟随正文颜色」的直觉（`label-primary`/`label-secondary`）。
 3. **工程收口优先于加功能**（GPT 评审结论，用户已采纳方向）：0.2.5 已做 foldState 隔离、rAF 节流、测量前不渲染、快照/DOM 一致性诊断；**纯函数抽取 + 单测 + CI 明确推迟到 0.3.0 前置**（理由：函数都在 `apply()` 闭包内、依赖活的 `config`，抽取需参数化；绝不能边移动边改逻辑——对比度/alpha 阈值是最容易出回归的领域）。
-4. **版本节奏**：小修小补 0.2.x，新功能线 0.3.0（Contextual Follow-up，尚未开始）；README 路线图每个版本更新（章节 + 上一版标「已发布」+ 钉版示例 `#vX.Y.Z`），双语同步。
+4. **版本节奏**：小修小补 0.2.x，新功能线 0.3.0（Contextual Follow-up，尚未开始）；**逐版本变更写进 `CHANGELOG.md`**（最新在前，含日期），README 只留「当前能力 + 用法 + 路线图候选三条」，钉版示例 `#vX.Y.Z` 随版本更新，双语同步。发布时同时更新 GitHub About（描述 + homepage=npm 页）与截图。
 5. **社区约定**：截图声明在**本仓库** `screenshots.json`（相对路径数组）；给 awesome-dsh-plugin 提 PR 时 fork main 必须与上游同步、README 由 `scripts/generate-readme.mjs` 生成（不手编）。
 6. **文案必须与绘制代码对齐（0.2.10 教训）**：显示样式选项曾长期写作「竖条」，而绘制是 `fillRect(x, y, width, height)` 且宽（14–26px）远大于高（3px）——**一直是横线**，仓库里从未有过竖线绘制元件。这个错误标签传播进了文档，甚至误导过一次方案设计（差点新增一个与之同形的「横线」档）。**改绘制参数时同步改所有提及该样式的文案，反之亦然**；`grep 竖条 src/` 应保持零命中。
 7. **文档结论要能被 `git grep` 复核（0.2.10 教训）**：「定位条依赖 react-dom」写进了 README/HANDOVER 却没复核 —— 实际上 `git grep react-dom` 在源码零命中，构建产物唯一的 `require()` 实参是 `react`，该说法源自 0.2.6 之前就已删除的一套临时 DOM 实现。写「依赖 X」之前先 grep；发现不成立要主动订正。
@@ -189,11 +190,22 @@ pnpm install && pnpm run build   # 产出 lib/
 - **样式组合矩阵**：`横线/圆点` × `左缘/右缘` × `外圈 关/开` = 8 组逐项目检（绘制、悬停摘要、点击跳转、右缘摘要卡不溢出）
 - **性能三态观测**：A 官方轨正常+插件关 / B 官方轨隐藏+插件开 / C 官方轨隐藏+插件关，比较 `document.getElementsByTagName('*').length` 与内存；**先测再决定是否优化**
 
+### 6.1 README 截图重拍（kimi-webbridge，2026-09-16 实践有效）
+
+headless 客户端打不开正在运行的会话，**改用 kimi-webbridge 驱动用户真实浏览器**（复用其 GUI cookie，无需 `dsh web` 打印的一次性 token——launch token 只在进程内存里，磁盘上取不到）。脚本在 `/Users/wuke/工作文件/DeepSeek_Harness/.shot/`（`wb.py` 发命令、`card2shot.py`+`stitch.py` 拼设置卡、`hover.js`/`expandTurn.js` 造状态）。
+
+- 设置弹窗靠 **pointerdown** 打开：合成 `click` 无效，必须依次派发 `pointerdown/mousedown/pointerup/mouseup/click`（完整序列见 `opensettings.py`）
+- `tidychat-card` 展开后高约 1000px > 弹窗可视区，元素级截图会切掉卡片顶部：改为「对齐 → 视口截图 → 按几何用 PIL 纵向拼接」（两段即可覆盖）
+- 悬停摘要、展开折叠：合成 `PointerEvent('pointermove')` / `.click()` 即可触发（React 根监听）
+- **取景前先点几次「加载更早」**：DSH 只挂载已加载窗口，用户 `autoLoad:false` 时新开一个长会话只挂几轮 → 定位条按 `max(48, 12px×轮数)` 退化成 48px 短桩（不是 bug，是「DOM 即事实源」的直接后果）；加载到 ~50 轮才是满高 564px
+- 只做只读操作（滚动 / 悬停 / 展开 / 开设置页），**不要点引导按钮**（会写 `navGuideSeen` 等设置）
+- 收尾 `close_session` 关掉桥接标签组
+
 ---
 
-## 7. 待办 / 路线图（截至 v0.2.10）
+## 7. 待办 / 路线图（截至 v0.3.0）
 
-- **0.3.0 Contextual Follow-up**（用户已选中，未开工）：选中 Assistant 最终正文 → 浮出「添加到对话」→ Composer 上方引用卡片 → 发送时携带引用。V1 严格限定：只支持 Assistant 最终正文；内部抽象 `SelectionReference`（sessionId / anchorKey / selectedText / sourceType）
+- **Contextual Follow-up**（用户已选中，未开工；原计划挂在 0.3.0，0.3.0 已被「消息轨恢复 + 接管/样式/引导」占用）：选中 Assistant 最终正文 → 浮出「添加到对话」→ Composer 上方引用卡片 → 发送时携带引用。V1 严格限定：只支持 Assistant 最终正文；内部抽象 `SelectionReference`（sessionId / anchorKey / selectedText / sourceType）
 - **0.3.0 前置**：纯函数抽取（parseRgba/contrastRatio/layoutPositions/indexFromY/cleanTiming 等）+ vitest 单测 + GitHub Actions（install/typecheck/test/build）
 - **TurnSnapshot → Incremental Turn Index**：推迟，等真实 500+/1000+ 轮数据（README 路线图已注明）
 - **issue #2**：运行中回合的已完成步骤折叠（需求强度待验证）
