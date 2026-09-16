@@ -58,7 +58,7 @@
 dsh plugin --profile web add @bananasoldier01/dsh-tidychat
 
 # 方式 2：从 GitHub 安装（推荐钉版本，可复现）
-dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat.git#v0.3.0
+dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat.git#v0.3.1
 ```
 
 安装后重启 dsh web + 硬刷新（Cmd+Shift+R）。
@@ -72,7 +72,7 @@ dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat
 dsh plugin --profile web update @bananasoldier01/dsh-tidychat
 
 # 方式 B：装的是某个 tag，改钉到新 tag 重新 add
-dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat.git#v0.3.0
+dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat.git#v0.3.1
 ```
 
 更新后同样重启 dsh web + 硬刷新。
@@ -125,7 +125,7 @@ dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat
 
 ## 🗺️ 路线图
 
-逐版本变更已迁至 [`CHANGELOG.md`](./CHANGELOG.md)。当前 0.3.0，候选方向：
+逐版本变更已迁至 [`CHANGELOG.md`](./CHANGELOG.md)。当前 0.3.1，候选方向：
 
 1. **Turn Index 层**：conversation DOM → Turn Index（id/element/position/summary），由 fold / navigator / autoload 共享，替代每次全量扫描；等真实 500+ 轮数据再定增量方案。
 2. **运行中回合的已完成步骤折叠**（issue #2）：单轮内执行大量动作时实时折叠已完成步骤，需求强度待验证。

@@ -58,7 +58,7 @@ Prerequisite: DSH (Web) installed, `pnpm` on PATH.
 dsh plugin --profile web add @bananasoldier01/dsh-tidychat
 
 # Option 2: from GitHub (pin a tag for reproducibility)
-dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat.git#v0.3.0
+dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat.git#v0.3.1
 ```
 
 Restart dsh web + hard refresh (Cmd+Shift+R) after installing.
@@ -72,7 +72,7 @@ The plugin is installed as a profile dependency; updating just re-pulls that dep
 dsh plugin --profile web update @bananasoldier01/dsh-tidychat
 
 # Option B: pinned to a tag — re-add pinned to the new tag
-dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat.git#v0.3.0
+dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat.git#v0.3.1
 ```
 
 Restart dsh web + hard refresh after updating.
@@ -125,7 +125,7 @@ Pure browser half (`exports "./client"`); the host half only registers the setti
 
 ## 🗺️ Roadmap
 
-Per-version changes live in [`CHANGELOG.md`](./CHANGELOG.md). Currently 0.3.0; candidates:
+Per-version changes live in [`CHANGELOG.md`](./CHANGELOG.md). Currently 0.3.1; candidates:
 
 1. **Turn Index layer**: conversation DOM → Turn Index (id/element/position/summary) shared by fold / navigator / autoload, replacing full rescans; incremental maintenance once real 500+ turn data is available.
 2. **Folding completed in-flight steps** (issue #2): fold completed steps live within a single turn that runs many actions. Demand TBD.

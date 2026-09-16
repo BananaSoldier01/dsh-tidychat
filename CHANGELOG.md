@@ -4,7 +4,7 @@
 
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [SemVer](https://semver.org/lang/zh-CN/)。
 
-## [0.3.1] — 未发布
+## [0.3.1] — 2026-09-16
 
 消息轨在「更早历史未加载」时的可发现性 + 一处落点错位修复。
 

@@ -1,6 +1,6 @@
 # dsh-tidychat 交接文档（HANDOVER）
 
-> 面向：接续开发的新会话 / 新协作者。内容基于 **v0.3.0（main）** 快照。仓库根目录：`/Users/wuke/工作文件/DeepSeek_Harness/dsh-tidychat`（本机 link 模式开发）。
+> 面向：接续开发的新会话 / 新协作者。内容基于 **v0.3.1（main）** 快照。仓库根目录：`/Users/wuke/工作文件/DeepSeek_Harness/dsh-tidychat`（本机 link 模式开发）。
 
 ---
 
@@ -10,9 +10,9 @@
 
 - 仓库：https://github.com/BananaSoldier01/dsh-tidychat（owner：BananaSoldier01）
 - fork：https://github.com/drscrewdriver/dsh-tidychat（origin；upstream = 上面的原仓库）
-- npm：`@bananasoldier01/dsh-tidychat`（public，最新 **0.3.0**）
+- npm：`@bananasoldier01/dsh-tidychat`（public，最新 **0.3.1**）
 - 插件索引：**awesome-dsh-plugin 已收录**（PR #3067 合并，session 分类 + 截图），即 dsh-market 源
-- 当前版本线：v0.2.0 → v0.3.0（0.2.0 导航条大版本；0.2.1 配色；0.2.2 提示卡可读性；0.2.3 配色/publish 准备；0.2.4 npm 元数据；0.2.5 Hardening；0.2.6 折叠/分隔线重做；0.2.7 settings API 向后兼容；0.2.8 旧版 DSH 折叠回退；0.2.9 调色盘配色；**0.3.0 接管官方消息轨 + 外圈 + 0.1.2+ 取数路径修复 + 首次引导 + 设置项重排 + 跳转滚动缓动**）
+- 当前版本线：v0.2.0 → v0.3.0（0.2.0 导航条大版本；0.2.1 配色；0.2.2 提示卡可读性；0.2.3 配色/publish 准备；0.2.4 npm 元数据；0.2.5 Hardening；0.2.6 折叠/分隔线重做；0.2.7 settings API 向后兼容；0.2.8 旧版 DSH 折叠回退；0.2.9 调色盘配色；**0.3.0 接管官方消息轨 + 外圈 + 0.1.2+ 取数路径修复 + 首次引导 + 设置项重排 + 跳转滚动缓动；0.3.1 「更早历史未加载」提示带 + 一键加载、点击标记落点错位修复**）
 - 分支：PR #10（`feat/rail-mirror-and-dots`）**已并入 main**（merge commit `34bc43c`，0.3.0 发布）；后续维护者改动在其之上（首次引导 / 设置项重排 / 滚动缓动）。`shadow/main` 备用主线已无必要
 
 ---
@@ -34,14 +34,14 @@ dsh-tidychat/
 ├── scripts/whitelist-patch.sh # DSH ≤ rc.6 的 settings 白名单补丁（幂等）
 ├── .github/ISSUE_TEMPLATE/   # bug_report.yml / feature_request.yml
 ├── cordis.patch.yml          # dsh.bundle 的 patch 声明
-├── package.json              # 0.3.0；dsh.bundle 清单；peerDependencies（dsh-settings/react）
+├── package.json              # 0.3.1；dsh.bundle 清单；peerDependencies（dsh-settings/react）
 │                             # dependencies 仅 schemastery；files 白名单；prepublishOnly=pnpm build
 │                             # ⚠️ 元数据冻结：除 version / description 外不得改动
 ├── tsdown.config.ts          # 构建配置；用 createRequire 读 package.json 版本 → __PLUGIN_VERSION__
 ├── tsconfig.json
 ├── README.md                 # 中文默认（npm/GitHub 首页展示）—— 只放当前能力与用法（~142 行）
 ├── README.en.md              # 英文全量版；两文件顶部互链，小节结构逐行对齐
-├── CHANGELOG.md              # 逐版本变更（0.1.1 → 0.3.0）；README 的路线图历史已迁到此处
+├── CHANGELOG.md              # 逐版本变更（0.1.1 → 0.3.1）；README 的路线图历史已迁到此处
 ├── HANDOVER.md               # 本文件
 └── LICENSE (MIT)
 ```
@@ -207,7 +207,7 @@ headless 客户端打不开正在运行的会话，**改用 kimi-webbridge 驱�
 
 ---
 
-## 7. 待办 / 路线图（截至 v0.3.0）
+## 7. 待办 / 路线图（截至 v0.3.1）
 
 - **Contextual Follow-up**（用户已选中，未开工；原计划挂在 0.3.0，0.3.0 已被「消息轨恢复 + 接管/样式/引导」占用）：选中 Assistant 最终正文 → 浮出「添加到对话」→ Composer 上方引用卡片 → 发送时携带引用。V1 严格限定：只支持 Assistant 最终正文；内部抽象 `SelectionReference`（sessionId / anchorKey / selectedText / sourceType）
 - **0.3.0 前置**：纯函数抽取（parseRgba/contrastRatio/layoutPositions/indexFromY/cleanTiming 等）+ vitest 单测 + GitHub Actions（install/typecheck/test/build）
