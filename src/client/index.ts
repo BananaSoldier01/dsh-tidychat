@@ -417,6 +417,75 @@ html[data-tidychat-hide-official-nav] nav[class*="_frame"]:has([style*="--turn-n
   text-align: right;
   flex: none;
 }
+/* 首次引导：挂在 shell.overlay（该层默认点击穿透，卡片自己 opt-in 指针事件，不挡应用） */
+.tidychat-guide-wrap {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 60;
+  pointer-events: none;
+}
+.tidychat-guide {
+  pointer-events: auto;
+  box-sizing: border-box;
+  width: min(560px, calc(100vw - 40px));
+  background: var(--dsw-alias-bg-layer-3, #fff);
+  border: 1px solid var(--dsw-alias-border-l2, rgba(128,128,128,0.4));
+  border-radius: 14px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+  padding: 16px 18px 12px;
+  color: var(--dsw-alias-label-primary, #222);
+}
+.tidychat-guide-title {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0 0 8px;
+}
+.tidychat-guide-body {
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--dsw-alias-label-secondary, #666);
+}
+.tidychat-guide-body b {
+  font-weight: 600;
+  color: var(--dsw-alias-label-primary, #222);
+}
+.tidychat-guide-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+.tidychat-guide-btn {
+  appearance: none;
+  cursor: pointer;
+  font-size: 12px;
+  border: 1px solid var(--dsw-alias-border-l2, rgba(128,128,128,0.4));
+  background: transparent;
+  color: var(--dsw-alias-label-secondary, #666);
+  border-radius: 999px;
+  padding: 4px 12px;
+}
+.tidychat-guide-btn:hover {
+  background: var(--dsw-alias-interactive-bg-hover, rgba(127,127,127,0.1));
+}
+.tidychat-guide-btn-primary {
+  border-color: var(--dsw-alias-state-business-primary, #3b82f6);
+  color: var(--dsw-alias-label-primary, #222);
+  background: var(--dsw-alias-interactive-bg-hover, rgba(127,127,127,0.12));
+}
+.tidychat-guide-dismiss {
+  appearance: none;
+  margin-left: auto;
+  border: none;
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary, #999);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 4px 2px;
+}
 .tidychat-switch {
   appearance: none;
   border: none;
@@ -565,7 +634,7 @@ export function apply(ctx: any): void {
   }
 
   // 设置：tidychat 命名空间，四个开关 + 定位条配色（默认色 auto 尊重主题 + 强调色 auto 跟随主题品牌色）；读不到 settings 服务时全开。
-  const config = { fold: true, divider: true, navigator: true, hideOfficialNav: false, autoLoad: true, navColor: 'auto', navColorCustom: '', navColorLight: 'l3', navAccent: 'auto', navAccentCustom: '', navAccentLight: 'l3', navSide: 'left', navStyle: 'bar', navRing: false }
+  const config = { fold: true, divider: true, navigator: true, hideOfficialNav: false, autoLoad: true, navColor: 'auto', navColorCustom: '', navColorLight: 'l3', navAccent: 'auto', navAccentCustom: '', navAccentLight: 'l3', navSide: 'left', navStyle: 'bar', navRing: false, navGuideSeen: false }
   let settingsScope: any = null
   const settingsFace = ctx.get('webUiSettings') ?? ctx.get('settingsScope')
   if (settingsFace !== undefined && typeof settingsFace.bind === 'function') {
@@ -1345,6 +1414,7 @@ export function apply(ctx: any): void {
           config.navSide = snap.value.navSide === 'right' ? 'right' : 'left'
           config.navStyle = snap.value.navStyle === 'dot' ? 'dot' : 'bar'
           config.navRing = snap.value.navRing === true
+          config.navGuideSeen = snap.value.navGuideSeen === true
         }
       } catch { /* keep defaults */ }
     }
@@ -1505,6 +1575,35 @@ export function apply(ctx: any): void {
       // 行位置缓存：scroll 无关的内容坐标（相对滚动容器），供「当前 turn 检测 + 跳转」二分。
       // scrollH 记录缓存构建时的容器内容高度——折叠/加载会改变布局（行数可能不变但位置变），用它判定重算。
       const rowCacheRef = React.useRef<{ rows: Element[]; tops: number[]; count: number; scrollH: number }>({ rows: [], tops: [], count: -1, scrollH: -1 })
+      // 跳转滚动的自绘动画句柄。替代原生 `behavior:'smooth'`：原生时长/曲线由浏览器决定
+      // （长距离偏慢、短距离偏硬），且连续点击/拖拽时无法接管或打断。
+      const scrollAnimRef = React.useRef(0)
+      const cancelScrollAnim = (): void => {
+        if (scrollAnimRef.current !== 0) { cancelAnimationFrame(scrollAnimRef.current); scrollAnimRef.current = 0 }
+      }
+      // 时长随距离增长但有上下限（短距离不拖沓、长距离不失控），缓动 easeInOutCubic：两端慢、中间快。
+      // 尊重系统「减少动态效果」：直接落位。
+      const smoothScrollTo = (container: Element, top: number): void => {
+        cancelScrollAnim()
+        const el = container as HTMLElement
+        const maxTop = Math.max(0, el.scrollHeight - el.clientHeight)
+        const target = Math.max(0, Math.min(maxTop, top))
+        const start = el.scrollTop
+        const delta = target - start
+        if (Math.abs(delta) < 1) return
+        let reduce = false
+        try { reduce = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches } catch { /* 忽略 */ }
+        if (reduce) { el.scrollTop = target; return }
+        const duration = Math.min(700, Math.max(260, Math.abs(delta) * 0.45))
+        const t0 = performance.now()
+        const ease = (p: number): number => (p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2)
+        const step = (now: number): void => {
+          const p = Math.min(1, (now - t0) / duration)
+          el.scrollTop = start + delta * ease(p)
+          scrollAnimRef.current = p < 1 ? requestAnimationFrame(step) : 0
+        }
+        scrollAnimRef.current = requestAnimationFrame(step)
+      }
 
       // 用户行 = 'user'（开新回合）+ 'steering'（运行中插队，宿主渲染为独立 kind）二者同视，
       // 与主链路/诊断共用模块级 railRows（口径统一）
@@ -1710,13 +1809,27 @@ export function apply(ctx: any): void {
           })
         }
         if (container !== null) container.addEventListener('scroll', onScroll, { passive: true })
+        // 跳转动画期间用户一旦自己滚动/按键，立刻让出控制权
+        //（我们自己的 scrollTop 写入不会触发 wheel/touchstart/keydown，所以不会自打断）
+        const onUserTakeOver = (): void => cancelScrollAnim()
+        if (container !== null) {
+          container.addEventListener('wheel', onUserTakeOver, { passive: true })
+          container.addEventListener('touchstart', onUserTakeOver, { passive: true })
+        }
+        window.addEventListener('keydown', onUserTakeOver)
         return () => {
           try { unsub() } catch { /* ignore */ }
           const i = listeners.indexOf(refresh)
           if (i >= 0) listeners.splice(i, 1)
           resizeObs?.disconnect()
           window.removeEventListener('resize', refresh)
-          if (container !== null) container.removeEventListener('scroll', onScroll)
+          if (container !== null) {
+            container.removeEventListener('scroll', onScroll)
+            container.removeEventListener('wheel', onUserTakeOver)
+            container.removeEventListener('touchstart', onUserTakeOver)
+          }
+          window.removeEventListener('keydown', onUserTakeOver)
+          cancelScrollAnim()
           if (scrollRaf !== 0) cancelAnimationFrame(scrollRaf)
           if (moveRafRef.current !== 0) cancelAnimationFrame(moveRafRef.current)
         }
@@ -1751,7 +1864,7 @@ export function apply(ctx: any): void {
         const cRect = container.getBoundingClientRect()
         const tRect = t.el.getBoundingClientRect()
         // 用户消息出现在阅读区顶部（header 之下），而非 viewport 中心或埋进 header
-        container.scrollTo({ top: (tRect.top - cRect.top) + container.scrollTop - HEADER_OFFSET, behavior: 'smooth' })
+        smoothScrollTo(container, (tRect.top - cRect.top) + container.scrollTop - HEADER_OFFSET)
       }
       const handlePointerMove = (ev: React.PointerEvent<HTMLCanvasElement>): void => {
         moveLastRef.current = { x: ev.clientX, y: ev.clientY }
@@ -1826,6 +1939,97 @@ export function apply(ctx: any): void {
     },
   ))
 
+  // ===== 首次引导：插件轨与官方 TurnNavigator 并存时弹一次，讲清「二选一」 =====
+  // 挂在 shell.overlay（kind: list、scope: root 的框架级浮层，默认点击穿透）。
+  // 只在两种条件同时成立时出现：① 用户还没点过（navGuideSeen !== true）；② 官方轨确实在场。
+  // 旧版 DSH（0.1.0-rc.7 ~ 0.1.1-rc.x）没有官方轨，没什么可解释的 → 不打扰。
+  const officialRailPresent = (): boolean => {
+    try {
+      // 不硬编码 CSS Module 的 hash 类名（随构建变化）：锚在局部名 + 官方给每轮写入的内联变量
+      if (document.querySelector('nav[class*="_frame"] [style*="--turn-natural-position"]') !== null) return true
+      return document.querySelector('nav[class*="_frame"]') !== null
+    } catch { return false }
+  }
+  // 「重新显示首次引导」用的强制信号：设置页里会话未渲染（官方轨不在 DOM），
+  // 只靠 officialRailPresent() 会导致点了没反应 → 显式请求时无视该判定。
+  // 用内存信号 + 自建订阅强制重渲染（设置写入可能是 no-op，不保证触发快照变更）。
+  let guideForce = false
+  const guideListeners: Array<() => void> = []
+  const notifyGuide = (): void => { for (const fn of guideListeners) fn() }
+  const TidychatGuide = () => {
+    const [snap, setSnap] = React.useState<any>(null)
+    const [official, setOfficial] = React.useState(false)
+    const [, setGuideTick] = React.useState(0)
+    React.useEffect(() => {
+      const fn = (): void => setGuideTick((t) => t + 1)
+      guideListeners.push(fn)
+      return () => { const i = guideListeners.indexOf(fn); if (i >= 0) guideListeners.splice(i, 1) }
+    }, [])
+    React.useEffect(() => {
+      if (settingsScope === null) { setSnap(null); return }
+      const pull = () => { try { setSnap(settingsScope.getSnapshot()) } catch { setSnap(null) } }
+      pull()
+      let unsub: () => void = () => {}
+      try { unsub = settingsScope.subscribe(pull) } catch { unsub = () => {} }
+      return () => { try { unsub() } catch { /* ignore */ } }
+    }, [])
+    const seen = snap !== null && snap !== undefined && snap.value?.navGuideSeen === true
+    // 已看过就彻底停轮询；否则每 1.5s 查一次（一次 querySelector，找到即停）
+    React.useEffect(() => {
+      if (seen) return
+      if (officialRailPresent()) { setOfficial(true); return }
+      const id = setInterval(() => {
+        if (officialRailPresent()) { setOfficial(true); clearInterval(id) }
+      }, 1500)
+      return () => { clearInterval(id) }
+    }, [seen])
+    if (snap === null || snap === undefined) return null
+    if (snap.status !== 'ready' || snap.writable !== true) return null
+    if (snap.value?.navGuideSeen === true && !guideForce) return null
+    // 官方轨不在场就不打扰（旧版 DSH）；但用户显式点「重新显示首次引导」时无条件弹
+    if (!guideForce && !official) return null
+    const pick = (patch: Record<string, unknown>): void => {
+      guideForce = false
+      if (settingsScope === null) return
+      void settingsScope.set('navGuideSeen', true).catch(() => {})
+      for (const [field, v] of Object.entries(patch)) void settingsScope.set(field, v).catch(() => {})
+    }
+    return React.createElement('div', { className: 'tidychat-guide-wrap' },
+      React.createElement('div', { className: 'tidychat-guide', role: 'dialog', 'aria-label': '定位条选择向导' },
+        React.createElement('p', { className: 'tidychat-guide-title' }, '现在有两条导航轨，选一条就行'),
+        React.createElement('div', { className: 'tidychat-guide-body' },
+          React.createElement('div', null, '· ', React.createElement('b', null, '左缘'), '：本插件（可贴左/贴右、横线/圆点、外圈、调色盘）'),
+          React.createElement('div', null, '· ', React.createElement('b', null, '右缘'), '：DSH 官方 TurnNavigator（0.1.2+ 自带）'),
+          React.createElement('div', null, '两者取其一或都留着都行；开关都在「设置 → 插件配置 → 会话整理tidychat」里，随时可改。'),
+        ),
+        React.createElement('div', { className: 'tidychat-guide-actions' },
+          React.createElement('button', {
+            type: 'button', className: 'tidychat-guide-btn tidychat-guide-btn-primary',
+            onClick: () => pick({ navigator: true, hideOfficialNav: true }),
+          }, '用插件的，隐藏官方轨'),
+          React.createElement('button', {
+            type: 'button', className: 'tidychat-guide-btn',
+            // 必须同时撤销接管：否则「关掉插件轨」后官方轨仍被隐藏 → 一条轨都不剩
+            onClick: () => pick({ navigator: false, hideOfficialNav: false }),
+          }, '用官方的，关掉插件轨'),
+          React.createElement('button', {
+            type: 'button', className: 'tidychat-guide-btn',
+            // 同上：要「两条都留着」就必须解除接管
+            onClick: () => pick({ navigator: true, hideOfficialNav: false }),
+          }, '两条都留着'),
+          React.createElement('button', {
+            type: 'button', className: 'tidychat-guide-dismiss',
+            onClick: () => pick({}),
+          }, '知道了'),
+        ),
+      ),
+    )
+  }
+  ctx.slots.inject('shell.overlay', () => ctx.slots.register(
+    { name: 'shell.overlay', id: 'tidychat-guide' },
+    TidychatGuide,
+  ))
+
   // 设置卡片（「设置 > 插件配置」里的四个开关，写入 tidychat 命名空间并即时生效）
   const TidychatSettingsCard = () => {
     const [open, setOpen] = React.useState(false)
@@ -1842,13 +2046,31 @@ export function apply(ctx: any): void {
     }, [])
     const value = (snap !== null && snap !== undefined && snap.value) ? snap.value : { fold: true, divider: true, navigator: true, hideOfficialNav: false, autoLoad: true, navColor: 'auto', navColorCustom: '', navColorLight: 'l3', navAccent: 'auto', navAccentCustom: '', navAccentLight: 'l3', navSide: 'left', navStyle: 'bar', navRing: false, debug: false }
     const writable = snap !== null && snap !== undefined ? snap.writable : false
-    const fields: Array<[string, string, string]> = [
+    // 开关分两段：定位条的「显示位置 / 显示样式 / 外圈」（navLayout）夹在 navigator 之后，
+    // 让「开哪个轨 + 怎么显示」相邻可读；其余开关排在 navLayout 之后。
+    const fieldsTop: Array<[string, string, string]> = [
       ['fold', '自动折叠已完成轮次', '隐藏思考、工具调用与中间文字，只保留最终结论，控制条含处理时长。'],
       ['divider', '思考↔文字分隔线', '在思考行与正文文字之间插入实线，区分过程与结论。'],
-      ['navigator', '左缘定位条', '聊天区左缘的细窄条状导航，悬停显示摘要、点击跳转到对应消息；贴边与样式可在下方调整。'],
+      ['navigator', '定位条', '聊天区边缘的细窄条状导航，悬停显示摘要、点击跳转到对应消息；贴边与样式可在下方调整。'],
+    ]
+    const fieldsBottom: Array<[string, string, string]> = [
       ['hideOfficialNav', '接管官方消息轨', '隐藏 DSH 原生右缘 TurnNavigator（0.1.2+），由本插件定位条接管。注意：是隐藏而非卸载，官方轨仍会挂载；定位条本身关闭时请勿开启，否则将没有任何消息轨。'],
       ['autoLoad', '智能加载更早历史', '在页面空闲时逐步加载更早记录；检测到页面响应下降时自动暂停，以保持长会话流畅。需要时仍可手动继续加载。'],
     ]
+    const toggleField = ([field, label, hint]: [string, string, string]): any => React.createElement('div', { key: field, className: 'tidychat-field' },
+      React.createElement('div', { className: 'tidychat-field-head' },
+        React.createElement('span', { className: 'tidychat-field-label' }, label),
+        React.createElement('button', {
+          type: 'button',
+          className: 'tidychat-switch' + (value[field] === true ? ' tidychat-switch-on' : ''),
+          role: 'switch',
+          'aria-checked': value[field] === true,
+          disabled: !writable,
+          onClick: () => toggle(field),
+        }),
+      ),
+      React.createElement('p', { className: 'tidychat-field-hint' }, hint),
+    )
     const toggle = (field: string): void => {
       if (settingsScope === null) return
       const cur = value[field] ?? true
@@ -1942,20 +2164,7 @@ export function apply(ctx: any): void {
         ),
       ),
       open ? React.createElement('div', { className: 'tidychat-card-body' },
-        fields.map(([field, label, hint]) => React.createElement('div', { key: field, className: 'tidychat-field' },
-          React.createElement('div', { className: 'tidychat-field-head' },
-            React.createElement('span', { className: 'tidychat-field-label' }, label),
-            React.createElement('button', {
-              type: 'button',
-              className: 'tidychat-switch' + (value[field] === true ? ' tidychat-switch-on' : ''),
-              role: 'switch',
-              'aria-checked': value[field] === true,
-              disabled: !writable,
-              onClick: () => toggle(field),
-            }),
-          ),
-          React.createElement('p', { className: 'tidychat-field-hint' }, hint),
-        )),
+        fieldsTop.map(toggleField),
         React.createElement('div', { key: 'navLayout', className: 'tidychat-field' },
           React.createElement('div', { className: 'tidychat-field-head' },
             React.createElement('span', { className: 'tidychat-field-label' }, '显示位置'),
@@ -1970,7 +2179,21 @@ export function apply(ctx: any): void {
           ),
           chipRow(NAV_RING_OPTIONS, value.navRing === true ? 'on' : 'off', (k) => setColor('navRing', k === 'on'), !writable),
           React.createElement('p', { className: 'tidychat-field-hint' }, '位置 = 消息轨贴会话区左缘或右缘，右缘时整体镜像（横线模式的强调三角指左、摘要卡从左侧弹出）；样式 = 横线或圆点，圆点模式同样保留悬停鱼眼放大与点击跳转；外圈 = 在当前轮与悬停轮的标记外描一圈强调色（1px、外扩 2px），横线为胶囊形、圆点为正圆环，颜色跟随下方「强调色」。'),
+          // 误点关闭后想再看一次时用；只在「插件轨 + 官方轨并存」的场景才会再次弹出
+          React.createElement('button', {
+            type: 'button',
+            className: 'tidychat-guide-btn',
+            style: { marginTop: '10px' },
+            disabled: !writable,
+            onClick: () => {
+              // 强制信号 + 通知：设置写入可能是 no-op（值本来就是 false），不能只靠快照变更触发重渲染
+              guideForce = true
+              notifyGuide()
+              setColor('navGuideSeen', false)
+            },
+          }, '重新显示首次引导'),
         ),
+        fieldsBottom.map(toggleField),
         React.createElement('div', { key: 'navColors', className: 'tidychat-field' },
           React.createElement('button', {
             type: 'button',

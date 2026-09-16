@@ -42,6 +42,8 @@ export interface Config {
   navStyle?: string
   /** 定位条外圈：在插件自己的横线/圆点外描一圈强调色（1px 描边、外扩 2px），仅当前轮与悬停轮。 */
   navRing?: boolean
+  /** 首次引导是否已看过：false（默认）时，若检测到插件轨与官方 TurnNavigator 并存，会弹一次选择向导；点过任意选项或“知道了”后置为 true。 */
+  navGuideSeen?: boolean
 }
 
 /** 定位条默认色模式枚举（auto / custom；gray…red 为历史色系值，兼容保留）。 */
@@ -70,6 +72,7 @@ export const Config: z<Config> = z.object({
   navSide: z.union(NAV_SIDE_KEYS).default('left'),
   navStyle: z.union(NAV_STYLE_KEYS).default('bar'),
   navRing: z.boolean().default(false),
+  navGuideSeen: z.boolean().default(false),
 })
 
 export const inject: string[] = []
