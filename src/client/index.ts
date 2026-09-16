@@ -1537,6 +1537,13 @@ export function apply(ctx: any): void {
   const NAV_RAIL_FISH_EYE_BOOST = 0.5
   const NAV_RAIL_TURN_SPACING = 12
   const NAV_RAIL_MIN_HEIGHT = 48
+  // 更早历史尚未加载（宿主渲染了「加载更早」按钮）时，轨道顶部预留一条提示带：
+  // 向上箭头 + 虚线，悬停给出说明，点击直接触发宿主的加载按钮（与 autoLoad 同一条路径，不新增设置项）。
+  // 背景：DSH 只挂载「已加载窗口」，用户关掉 autoLoad 后新开长会话可能只有 2 轮 → 轨道退化成 48px 短桩，
+  // 看上去像坏了；有了这条带子，短桩变成「上方还有内容，点这里加载」。
+  const NAV_RAIL_CAP_H = 16
+  // hover 取值用 -1 表示停在提示带上（真实标记索引 ≥ 0），避免再开一个 state
+  const NAV_RAIL_CAP_INDEX = -1
   const HEADER_OFFSET = 64
   // 外圈（独立开关 navRing）：1px 描边、外扩 2px，画在插件自己的横线/圆点包围盒之外，仅当前轮与悬停轮。
   const NAV_RAIL_RING_W = 1
@@ -1671,8 +1678,9 @@ export function apply(ctx: any): void {
         const canvas = canvasRef.current
         if (canvas === null) return
         const n = turns.length
-        if (n === 0) return
-        const H = railHeight(turns.length)
+        // 空标记区 + 无提示带 = 没有任何可画的东西
+        if (n === 0 && capOffset === 0) return
+        const H = marksHeight() + capOffset
         const W = NAV_RAIL_WIDTH - 8
         const dpr = window.devicePixelRatio || 1
         if (canvas.width !== Math.round(W * dpr) || canvas.height !== Math.round(H * dpr)) {
@@ -1693,8 +1701,9 @@ export function apply(ctx: any): void {
         const mirror = (config.navSide ?? 'left') === 'right'
         const dot = (config.navStyle ?? 'bar') === 'dot'
         const dir = mirror ? -1 : 1
-        const positions = layoutPositions(n, hover, H)
-        const nearest = (i: number): boolean => hover !== null && Math.abs(i - hover) <= 2
+        const positions = positionsAt(hover)
+        // 仅真实标记参与鱼眼命中（hover = -1 是提示带，不该让首条标记跟着变粗）
+        const nearest = (i: number): boolean => hover !== null && hover >= 0 && Math.abs(i - hover) <= 2
         for (let i = 0; i < n; i++) {
           const y = positions[i]
           const isCurrent = current === i
@@ -1754,6 +1763,30 @@ export function apply(ctx: any): void {
               ctx.stroke()
             }
           }
+        }
+        // ===== 顶部「更早历史未加载」提示带 =====
+        // 向上箭头（悬停时用强调色）+ 到首条标记的虚线，暗示轨道上方还有未加载内容；点击触发加载。
+        if (capOffset > 0) {
+          const capColor = hover === NAV_RAIL_CAP_INDEX ? hotColor : barColor
+          const cx = mirror ? W - NAV_RAIL_BAR_LEN / 2 : NAV_RAIL_BAR_LEN / 2
+          const cy = NAV_RAIL_CAP_H / 2
+          ctx.strokeStyle = capColor
+          ctx.fillStyle = capColor
+          ctx.lineWidth = 1.5
+          ctx.lineCap = 'round'
+          ctx.beginPath()
+          ctx.moveTo(cx - 3.5, cy + 1.5)
+          ctx.lineTo(cx, cy - 2)
+          ctx.lineTo(cx + 3.5, cy + 1.5)
+          ctx.stroke()
+          ctx.lineWidth = 1
+          ctx.setLineDash([2, 3])
+          ctx.beginPath()
+          ctx.moveTo(cx, cy + 4)
+          // 没有标记时（消息窗口落在某个回合内部）不画虚线，只留箭头
+          if (positions.length > 0) ctx.lineTo(cx, Math.max(cy + 4, positions[0]! - 4))
+          ctx.stroke()
+          ctx.setLineDash([])
         }
       }
 
@@ -1843,6 +1876,21 @@ export function apply(ctx: any): void {
       const turns: Array<{ el: Element; summary: string; time: number | null }> = events.length === rows.length
         ? rows.map((el, i) => ({ el, summary: events[i]!.summary, time: events[i]!.time as number | null }))
         : rows.map((el) => ({ el, summary: fallbackSummary(el), time: null }))
+      // 更早历史尚未加载：宿主仍在渲染「加载更早」按钮。轨道顶部画一条提示带 + 点击即加载，
+      // 提示带高度不参与标记布局（标记整体下移 capOffset）。
+      const hasMoreHistory = findLoadOlderButton() !== null
+      const capOffset = hasMoreHistory ? NAV_RAIL_CAP_H : 0
+      // 没有已挂载的用户行时标记区高度为 0（只画提示带），否则按轮数自适应
+      const marksHeight = (): number => (turns.length === 0 ? 0 : railHeight(turns.length))
+      // 标记 y 坐标（**画布坐标系**，已含提示带下移量）：绘制、命中、落点三者同源。
+      // ⚠️ 命中测试一律传画布坐标（localY），不要再减 capOffset —— 位置本身已经下移过，
+      // 再减一次就是 16px 系统偏差（实测：点第 5 个标记落到第 4 个）。
+      const positionsAt = (hv: number | null): number[] =>
+        layoutPositions(turns.length, hv, marksHeight()).map((y) => y + capOffset)
+      const loadEarlier = (): void => {
+        const btn = findLoadOlderButton()
+        if (btn !== null) btn.click()
+      }
 
       // 每轮渲染后：行数或内容高度变化（折叠/加载）→ 重建行缓存 → 检测当前 turn → 重绘 canvas
       React.useEffect(() => {
@@ -1866,6 +1914,28 @@ export function apply(ctx: any): void {
         // 用户消息出现在阅读区顶部（header 之下），而非 viewport 中心或埋进 header
         smoothScrollTo(container, (tRect.top - cRect.top) + container.scrollTop - HEADER_OFFSET)
       }
+      const inCap = (localY: number): boolean => capOffset > 0 && localY < capOffset
+      // 命中测试（画布坐标 → 标记序号）。
+      // ⚠️ 鱼眼布局本身依赖 hover：直接拿「上一次的 hover」排版来算 y 最近邻会自反馈 ——
+      // hover 一改，标记整体重排，同一个 y 就算出别的序号（实测：提示写 #6，松手跳到第 4 个）。
+      // 这里对固定点迭代：找到 idx 使「以 idx 为中心的鱼眼布局」下 y 的最近邻仍是 idx，
+      // 于是 提示 = 高亮 = 落点 三者必然一致，且与 hover 状态无关（同一 y 永远同一序号）。
+      const markY = (i: number, hv: number | null): number => positionsAt(hv)[i] ?? 0
+      const indexAt = (localY: number): number => {
+        let idx = indexFromY(localY, positionsAt(null))
+        let prev = -1
+        for (let k = 0; k < 4; k++) {
+          const next = indexFromY(localY, positionsAt(idx))
+          if (next === idx) return idx
+          if (next === prev) {
+            // 两轮震荡：取离光标更近的那个，避免抖动
+            return Math.abs(markY(idx, idx) - localY) <= Math.abs(markY(next, next) - localY) ? idx : next
+          }
+          prev = idx
+          idx = next
+        }
+        return idx
+      }
       const handlePointerMove = (ev: React.PointerEvent<HTMLCanvasElement>): void => {
         moveLastRef.current = { x: ev.clientX, y: ev.clientY }
         if (moveRafRef.current !== 0) return
@@ -1876,15 +1946,29 @@ export function apply(ctx: any): void {
           if (p === null || canvasRef.current === null) return
           const canvas = canvasRef.current
           const rect = canvas.getBoundingClientRect()
-          const idx = indexFromY(p.y - rect.top, layoutPositions(turns.length, hover, railHeight(turns.length)))
+          const localY = p.y - rect.top
+          // 右缘镜像：tip.x 记鼠标左侧 18px，渲染改用 right 定位（left+translateX(-100%)
+          // 会把收缩适配宽度压到「视口宽-left」≈40px，泡泡被挤成一条细窄条）
+          const mirror = (config.navSide ?? 'left') === 'right'
+          // 提示带：说明「上方还有更早历史」，点击即加载（不给编号，因为那些轮次还没挂载）
+          if (inCap(localY)) {
+            if (hover !== NAV_RAIL_CAP_INDEX) setHover(NAV_RAIL_CAP_INDEX)
+            setTip({
+              x: mirror ? p.x - 18 : p.x + 18,
+              y: p.y - 8,
+              head: '更早历史未加载',
+              num: null,
+              time: '',
+              text: `点击加载更早记录 · 当前轨道仅覆盖已加载的 ${turns.length} 轮`,
+              mirror,
+            })
+            return
+          }
+          const idx = indexAt(localY)
           if (idx !== hover) setHover(idx)
           const u = turns[idx]
-          if (u !== undefined) {
-            // 右缘镜像：tip.x 记鼠标左侧 18px，渲染改用 right 定位（left+translateX(-100%)
-            // 会把收缩适配宽度压到「视口宽-left」≈40px，泡泡被挤成一条细窄条）
-            const mirror = (config.navSide ?? 'left') === 'right'
-            setTip({ x: mirror ? p.x - 18 : p.x + 18, y: p.y - 8, num: idx + 1, time: u.time !== undefined && u.time !== null ? hhmm(u.time) : '', text: u.summary, mirror })
-          }
+          if (u === undefined) { setTip(null); return }
+          setTip({ x: mirror ? p.x - 18 : p.x + 18, y: p.y - 8, num: idx + 1, time: u.time !== undefined && u.time !== null ? hhmm(u.time) : '', text: u.summary, mirror })
         })
       }
       const handlePointerLeave = (): void => {
@@ -1899,8 +1983,10 @@ export function apply(ctx: any): void {
         const canvas = canvasRef.current
         if (canvas !== null) {
           const rect = canvas.getBoundingClientRect()
-          const idx = indexFromY(ev.clientY - rect.top, layoutPositions(turns.length, hover, railHeight(turns.length)))
-          jumpTo(idx)
+          const localY = ev.clientY - rect.top
+          // 提示带上松手 = 加载更早历史（与 autoLoad 点击的是同一个宿主按钮）
+          if (inCap(localY)) loadEarlier()
+          else jumpTo(indexAt(localY))
         }
         try { ev.currentTarget.releasePointerCapture(ev.pointerId) } catch { /* 忽略 */ }
         setHover(null)
@@ -1912,7 +1998,9 @@ export function apply(ctx: any): void {
       if (pos === null) return null
       // 会话内容左侧留白不足以容纳定位条时隐藏（Codex 同款「空间足够才显示」）
       if (pos.gutter < NAV_RAIL_WIDTH) return null
-      if (turns.length === 0) return null
+      // 没有已挂载的用户行时：只有在「还有更早历史」时才渲染（渲染出的就是那条提示带）。
+      // 否则长会话新开（消息窗口落在某个回合内部、一轮都没挂）会连提示带都看不到。
+      if (turns.length === 0 && !hasMoreHistory) return null
       const style = { left: pos.left + 'px', top: pos.top + 'px' }
       const rail = React.createElement('div', {
         className: 'tidychat-nav-rail',
@@ -1932,7 +2020,9 @@ export function apply(ctx: any): void {
           ? { right: Math.max(0, window.innerWidth - tip.x) + 'px', top: tip.y + 'px' }
           : { left: tip.x + 'px', top: tip.y + 'px' },
       },
-        React.createElement('div', { className: 'tidychat-nav-tip-head' }, '#' + tip.num + (tip.time !== '' ? ' · ' + tip.time : '')),
+        React.createElement('div', { className: 'tidychat-nav-tip-head' },
+          // 提示带用固定小标题（没有轮次号：那些轮次还没挂载），普通标记用「#序号 · 时间」
+          tip.head !== undefined && tip.head !== null ? tip.head : '#' + tip.num + (tip.time !== '' ? ' · ' + tip.time : '')),
         React.createElement('div', null, tip.text),
       )
       return React.createElement(React.Fragment, null, rail, tipEl)

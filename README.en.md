@@ -14,7 +14,7 @@ In multi-task sessions, thoughts, tool calls, intermediate text and final summar
 | --- | --- |
 | 🗂 Auto-fold | Completed turns fold away thinking (Think), tool calls and intermediate text, keeping only the final summary; the control bar shows "N steps" and timing |
 | ➖ Divider | A solid line between thinking and prose — one glance separates "process" from "conclusion" |
-| 📍 Navigation rail | Global navigation along the chat edge: fish-eye hover, drag preview, click-to-jump, current-turn highlight. Dockable **left or right** (right mirrors everything), styles **line / dot**, plus a separate **ring** toggle; colours auto-adapt or come from a colour picker |
+| 📍 Navigation rail | Global navigation along the chat edge: fish-eye hover, drag preview, click-to-jump, current-turn highlight. Dockable **left or right** (right mirrors everything), styles **line / dot**, plus a separate **ring** toggle; colours auto-adapt or come from a colour picker. When earlier history is not loaded yet, an arrow appears at the rail's top — click it to load |
 | 🎛 Take over the official rail | Hides DSH 0.1.2+'s native right-edge TurnNavigator so this plugin's rail takes over (off by default; hides rather than unmounts) |
 | ⬆ Smart earlier-history load | Gradually loads older records while idle; pauses automatically when responsiveness drops; manual load still available |
 | 📤 One-click issue report | Generates a diagnostic report (version / browser / performance / anomaly detection / symptom tags) and opens a pre-filled GitHub issue |
@@ -30,10 +30,17 @@ All five toggles are independent ("Settings → Plugin Configuration", applied i
   <img src="./assets/fold-expanded.png" width="92%" alt="Expanded: full process restored">
 </p>
 
-**Navigation rail**: dockable left or right, style line / dot, ring independently toggleable. Hovering shows that turn's summary; clicking jumps to it (the shot below uses left + line style).
+**Navigation rail**: dockable left or right, style line / dot, ring independently toggleable. Hovering shows that turn's summary; clicking jumps to it.
 
 <p align="center">
-  <img src="./assets/navigator.png" width="92%" alt="Navigation rail and hover summary">
+  <img src="./assets/navigator.png" width="92%" alt="Rail (left + line) with hover summary">
+  <img src="./assets/navigator-right-dot-ring.png" width="92%" alt="Rail (right + dot + hover ring), summary card opens to the left">
+</p>
+
+**When earlier history is not loaded** (turns above are not mounted yet — common right after opening a long session): an arrow and a dashed line appear at the top of the rail; hovering explains the current coverage and **clicking loads earlier records**.
+
+<p align="center">
+  <img src="./assets/navigator-cap.png" width="58%" alt="Not-yet-loaded history hint with one-click load">
 </p>
 
 **Settings card**: five toggles (fold / divider / rail / take over the official rail / smart earlier-history load) + the rail's position · style · ring + colors + symptom tags and one-click diagnostics.

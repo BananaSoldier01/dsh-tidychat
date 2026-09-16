@@ -130,6 +130,8 @@ html[data-tidychat-hide-official-nav] nav[class*="_frame"]:has([style*="--turn-n
 6. **文案必须与绘制代码对齐（0.2.10 教训）**：显示样式选项曾长期写作「竖条」，而绘制是 `fillRect(x, y, width, height)` 且宽（14–26px）远大于高（3px）——**一直是横线**，仓库里从未有过竖线绘制元件。这个错误标签传播进了文档，甚至误导过一次方案设计（差点新增一个与之同形的「横线」档）。**改绘制参数时同步改所有提及该样式的文案，反之亦然**；`grep 竖条 src/` 应保持零命中。
 7. **文档结论要能被 `git grep` 复核（0.2.10 教训）**：「定位条依赖 react-dom」写进了 README/HANDOVER 却没复核 —— 实际上 `git grep react-dom` 在源码零命中，构建产物唯一的 `require()` 实参是 `react`，该说法源自 0.2.6 之前就已删除的一套临时 DOM 实现。写「依赖 X」之前先 grep；发现不成立要主动订正。
 8. **接管官方轨只能隐藏，不能卸载（0.2.10 结论）**：见 §2.1 语义边界。**禁止**改用 JS 删节点。
+9. **「已加载窗口」是定位条的事实边界（0.3.1 结论）**：DSH 只挂载已加载窗口（长会话新开时可能只有 2 个用户行，甚至 0 个 —— 消息窗口落在某个回合内部）。因此①轨道按轮数自适应高度时会出现 48px 短桩，②`turns.length === 0` 时不能直接 `return null`（否则连「还有更早历史」的提示都没有）。现在的做法：顶部提示带 + 点击加载，且没有更早历史时不显示。
+10. **命中测试不得依赖 hover 自身（0.3.1 教训）**：鱼眼布局 `layoutPositions(n, hover, H)` 的入参就是 hover，用「上一次 hover」算出的坐标做 y 最近邻会自反馈 —— 悬停后标记重排 → 同一 y 解析出别轮 → **提示与落点不一致**（实测 ±2 轮）。凡「绘制 / 命中 / 落点」共用同一坐标系的场景，命中一律取与状态无关的固定点解（见 `indexAt`）。新增任何随 hover 变化的布局参数时，必须重跑 `hitTest*` 口径的验证。
 
 ### 4.6 影子 main（`shadow/main`）
 
@@ -198,7 +200,9 @@ headless 客户端打不开正在运行的会话，**改用 kimi-webbridge 驱�
 - `tidychat-card` 展开后高约 1000px > 弹窗可视区，元素级截图会切掉卡片顶部：改为「对齐 → 视口截图 → 按几何用 PIL 纵向拼接」（两段即可覆盖）
 - 悬停摘要、展开折叠：合成 `PointerEvent('pointermove')` / `.click()` 即可触发（React 根监听）
 - **取景前先点几次「加载更早」**：DSH 只挂载已加载窗口，用户 `autoLoad:false` 时新开一个长会话只挂几轮 → 定位条按 `max(48, 12px×轮数)` 退化成 48px 短桩（不是 bug，是「DOM 即事实源」的直接后果）；加载到 ~50 轮才是满高 564px
-- 只做只读操作（滚动 / 悬停 / 展开 / 开设置页），**不要点引导按钮**（会写 `navGuideSeen` 等设置）
+- 只做只读操作（滚动 / 悬停 / 展开 / 开设置页），**不要点引导按钮**（会写 `navGuideSeen`）
+- **变体图**（右缘 + 圆点 + 外圈）：必须临时改设置 → 拍完立刻改回，并逐字段核对 `~/.dsh/settings.yaml` 已还原（0.3.1 拍图时改的是 `navSide`/`navStyle`/`navRing` 三项，其余字段未动）
+- `settings.png` 用 `card2shot.py`（对齐 → 视口截图 ×2 → `stitch.py` 纵向拼接）；提示带细节图用 `crop_cap.py` 从整屏图裁 `x∈[250,700] y∈[132,330]`
 - 收尾 `close_session` 关掉桥接标签组
 
 ---
@@ -209,7 +213,7 @@ headless 客户端打不开正在运行的会话，**改用 kimi-webbridge 驱�
 - **0.3.0 前置**：纯函数抽取（parseRgba/contrastRatio/layoutPositions/indexFromY/cleanTiming 等）+ vitest 单测 + GitHub Actions（install/typecheck/test/build）
 - **TurnSnapshot → Incremental Turn Index**：推迟，等真实 500+/1000+ 轮数据（README 路线图已注明）
 - **issue #2**：运行中回合的已完成步骤折叠（需求强度待验证）
-- **向上游提 issue（0.2.10 建议）**：① 为原生 TurnNavigator 提供开关或槽位覆盖，让插件能真正「逻辑关闭」而非仅隐藏；② 把 rail items 从「全会话大纲」改为「仅已加载窗口 + 懒加载」，削减超长会话的标记数
+- **向上游提 issue（0.2.10 建议）**：① 为原生 TurnNavigator 提供开关或槽位覆盖，让插件能真正「逻辑关闭」而非仅隐藏；② 把 rail items 从「全会话大纲」改为「仅已加载窗口 + 懒加载」，削减超长会话的标记数（0.3.1 已把「仅已加载窗口」这件事显式告知用户并给了一键加载，但尚未向上游提 issue）
 - 大方向判断（GPT 评审共识）：**别再堆「会话管理小功能」**（搜索/Bookmark/Token 统计等），主线是 **Long Conversation UX**：少看无关过程 → 快速定位历史 → 针对具体内容继续交流
 
 ---
