@@ -224,3 +224,5 @@ headless 客户端打不开正在运行的会话，**改用 kimi-webbridge 驱�
 - PR：#5（drscrewdriver 配色）已合并；#3 早期合并；awesome-dsh-plugin #3067 已合并
 - 贡献者：drscrewdriver（PR #5、issue #4/#6/#7）；维护者 = BananaSoldier01
 - 投稿 fork：`/Users/wuke/工作文件/DeepSeek_Harness/awesome-dsh-plugin`（已合并；将来再投稿先 `git fetch upstream && git rebase upstream/main`）
+- **awesome 条目更新（2026-09-16）**：PR **#5218** 更新简介（原文只写「左缘定位条」，0.3.0/0.3.1 后已不准确）。流程 = 只改 `data/plugins/BananaSoldier01__dsh-tidychat.yml` → `node scripts/generate-readme.mjs`（README 需一并提交且 `--check` 要过）→ 推 fork 分支 → `gh pr create`；整份改动只有 +4/−4。
+- ⚠️ **截图约定已变更**：截图声明放**本仓库**的 `screenshots.json`（相对路径数组，≤8 张），由上游 `probe-screenshots.mjs` 抓取；上游 `data/screenshots.json` 是**遗留文件**，本仓库一旦声明了自己的截图，上游那份会被 `prune-legacy-screenshots.mjs` 删除——**不要去改上游那个文件**（0.3.1 时改过一次，已回退）。
