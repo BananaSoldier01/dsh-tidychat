@@ -1,6 +1,6 @@
 # dsh-tidychat
 
-> [中文](./README.md)
+> [中文](./README.md) · 🧭 [DSH repository](https://github.com/deepseek-ai/deepseek-harness) · 📚 [awesome-dsh-plugin](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin)
 
 Turn long DSH conversations into a **scannable, skippable** stream of conclusions.
 

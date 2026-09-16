@@ -1,6 +1,6 @@
 # dsh-tidychat
 
-> 🌐 [English](./README.en.md)
+> 🌐 [English](./README.en.md) · 🧭 [DSH 仓库](https://github.com/deepseek-ai/deepseek-harness) · 📚 [awesome-dsh-plugin](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin)
 
 让 DSH 的长会话变成**可扫读、可跳转**的结论流。
 
