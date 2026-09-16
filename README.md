@@ -1,12 +1,12 @@
 # dsh-tidychat
 
-> 🌐 [English](./README.en.md) · 🧭 [DSH 仓库](https://github.com/deepseek-ai/deepseek-harness) · 📚 [awesome-dsh-plugin](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin)
+> 🌐 [English](./README.en.md)
+
+> 🧩 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（`dsh`）Web 插件，已收录于社区列表 [awesome-dsh-plugin](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin)，仓库挂 `#dsh` · `#dsh-plugin` topic。
 
 让 DSH 的长会话变成**可扫读、可跳转**的结论流。
 
 多任务、多轮次的会话里，思考、工具调用、中间文字和最终总结混在一起，回头找「上次那个任务的结论」很费劲。dsh-tidychat 把已完成的任务轮次折叠成一条结论、把思考与正文用分隔线切开，并在聊天区边缘提供 Codex 式导航消息轨（Canvas minimap）。
-
-> 🔌 生态：挂 `#dsh` · `#dsh-plugin` topic，欢迎收录。
 
 ## ✨ 功能
 

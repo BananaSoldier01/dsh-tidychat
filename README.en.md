@@ -1,12 +1,12 @@
 # dsh-tidychat
 
-> [中文](./README.md) · 🧭 [DSH repository](https://github.com/deepseek-ai/deepseek-harness) · 📚 [awesome-dsh-plugin](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin)
+> [中文](./README.md)
+
+> 🧩 A web plugin for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (`dsh`), listed in [awesome-dsh-plugin](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin); the repo carries the `#dsh` · `#dsh-plugin` topics.
 
 Turn long DSH conversations into a **scannable, skippable** stream of conclusions.
 
 In multi-task sessions, thoughts, tool calls, intermediate text and final summaries pile up, making it hard to find "the conclusion of that last task". dsh-tidychat folds completed turns into a single conclusion line, separates thinking from prose with a divider, and adds a Codex-style navigation rail (Canvas minimap) along the chat edge.
-
-> 🔌 Ecosystem: tagged `#dsh` · `#dsh-plugin`, contributions welcome.
 
 ## ✨ Features
 
