@@ -18,7 +18,7 @@ const libConfig: UserConfig = {
   dts: false,
   clean: false,
   deps: {
-    neverBundle: ['@deepseek-ai/dsh-settings', 'schemastery'],
+    neverBundle: ['@deepseek-ai/dsh-settings', '@deepseek-ai/schemastery'],
   },
 }
 

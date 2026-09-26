@@ -4,6 +4,17 @@
 
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [SemVer](https://semver.org/lang/zh-CN/)。
 
+## [0.3.2] — 2026-09-26
+
+适配 DSH 0.1.7 的设置面重构：命令式注册退场，改为声明式。
+
+**背景**：DSH 0.1.7-rc.1 把设置节注册 API 换到第三代——`installSection`（0.1.2~0.1.6）与 `register`（0.1.0-rc.7~0.1.1）被一并移除，客户端半的 `webUiSettings` / `settingsScope` 半服务与 `settings.plugin.item` 卡片席位也不再存在。插件原先「按宿主版本自动选用注册 API」的多分支整体失效，且没有任何命令式面可加。
+
+1. **声明式设置（host 半）**：删掉整个 `ctx.inject(['settings'])` 注册块；Config 全部 15 个字段标 `.volatile()`（`@deepseek-ai/schemastery ^3.18.4`，`.volatile()` 自该版提供），由宿主「设置 → 插件配置」自动渲染成表单、免 remount 即时生效。依赖由 npm `schemastery` 切到宿主同源的 `@deepseek-ai/schemastery`；peer `@deepseek-ai/dsh-settings` 收窄为 `>=0.1.7-rc.1 <0.2.0-0`，并声明 `engines.dsh` 同范围。宿主侧不消费配置值，`apply` 为空实现，无需订阅 `loader/volatile-update`。
+2. **客户端配置缝（browser 半）**：设置读取改绑 `ctx.configForms.get('tidychat')`（0.1.7 唯一客户端配置缝，face 与旧 scope 同形：`getSnapshot` / `subscribe` / `set`）；旧 `webUiSettings` / `settingsScope` 软读保留为回退，旧宿主上取不到即跳过。
+3. **设置卡迁移席位**：原 `settings.plugin.item` 卡片（含配色调色盘与诊断报告入口）改挂 `settings.plugins.tab`（0.1.7 保留席位）——「设置 → 插件」节里本插件自己的 tab（order 60）；卡片根元素 `li` → `div`（tab panel 语境非列表）。基础开关与完整卡片写同一份 entry 配置。
+4. **兼容线拆分**：`.volatile()` 是 0.1.7 独有方法（0.1.6 上调用即抛 `TypeError`），一份产物无法同时兼容 0.1.6 与 0.1.7——本版（及此后 main）为 **0.1.7 线**；DSH 0.1.0-rc.7 ~ 0.1.6 请使用 `0.3.1` 维护线。npm dist-tag 走 `dsh-0.1.7`。
+
 ## [0.3.1] — 2026-09-16
 
 消息轨在「更早历史未加载」时的可发现性 + 一处落点错位修复。

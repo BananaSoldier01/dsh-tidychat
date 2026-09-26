@@ -10,9 +10,9 @@
 
 - 仓库：https://github.com/BananaSoldier01/dsh-tidychat（owner：BananaSoldier01）
 - fork：https://github.com/drscrewdriver/dsh-tidychat（origin；upstream = 上面的原仓库）
-- npm：`@bananasoldier01/dsh-tidychat`（public，最新 **0.3.1**）
+- npm：`@bananasoldier01/dsh-tidychat`（public，最新 **0.3.2**；`0.3.0`/`0.3.1` 为旧宿主维护线终版，`0.3.2` 起为 DSH 0.1.7 线，dist-tag `dsh-0.1.7`）
 - 插件索引：**awesome-dsh-plugin 已收录**（PR #3067 合并，session 分类 + 截图），即 dsh-market 源
-- 当前版本线：v0.2.0 → v0.3.0（0.2.0 导航条大版本；0.2.1 配色；0.2.2 提示卡可读性；0.2.3 配色/publish 准备；0.2.4 npm 元数据；0.2.5 Hardening；0.2.6 折叠/分隔线重做；0.2.7 settings API 向后兼容；0.2.8 旧版 DSH 折叠回退；0.2.9 调色盘配色；**0.3.0 接管官方消息轨 + 外圈 + 0.1.2+ 取数路径修复 + 首次引导 + 设置项重排 + 跳转滚动缓动；0.3.1 「更早历史未加载」提示带 + 一键加载、点击标记落点错位修复**）
+- 当前版本线：v0.2.0 → v0.3.0（0.2.0 导航条大版本；0.2.1 配色；0.2.2 提示卡可读性；0.2.3 配色/publish 准备；0.2.4 npm 元数据；0.2.5 Hardening；0.2.6 折叠/分隔线重做；0.2.7 settings API 向后兼容；0.2.8 旧版 DSH 折叠回退；0.2.9 调色盘配色；**0.3.0 接管官方消息轨 + 外圈 + 0.1.2+ 取数路径修复 + 首次引导 + 设置项重排 + 跳转滚动缓动；0.3.1 「更早历史未加载」提示带 + 一键加载、点击标记落点错位修复；0.3.2 DSH 0.1.7 声明式设置迁移（volatile 自动成表 + configForms 缝 + 设置卡迁 settings.plugins.tab）**）
 - 分支：PR #10（`feat/rail-mirror-and-dots`）**已并入 main**（merge commit `34bc43c`，0.3.0 发布）；后续维护者改动在其之上（首次引导 / 设置项重排 / 滚动缓动）。`shadow/main` 备用主线已无必要
 
 ---
@@ -52,14 +52,16 @@ dsh-tidychat/
 
 ---
 
-## 2. DSH 契约点（已验证 0.1.0-rc.7 → 0.1.1-rc.2 稳定）
+## 2. DSH 契约点（0.1.0-rc.7 → 0.1.1-rc.2 实证；0.3.2 起目标 0.1.7-rc.1+）
 
-- `settings.plugin.item`：**keyed 槽**（rc.7 起由 list 改为 keyed），注册必须 `key: 'tidychat'`（同命名空间），旧 `id` 写法会报 "Failed to load plugins"
+- `settings.plugins.tab`（**0.1.7+**）：「插件」设置节的 tab 槽，设置卡注册 `id: 'tidychat'`（order 60）。0.1.2~0.1.6 的 `settings.plugin.item`（keyed 槽，`key: 'tidychat'`）已随 0.1.7 设置面重构移除，本插件 ≤ v0.3.1 在旧宿主上仍用它
+- `ctx.configForms.get('tidychat')`（**0.1.7+**）：唯一客户端配置缝，face 与旧 scope 同形（`getSnapshot` / `subscribe` / `set`，快照 `{ status, value, writable }`）；旧 `webUiSettings` / `settingsScope.bind({ namespace: 'tidychat' })` 软读保留为回退（0.1.7 宿主上取不到即跳过）
+- host 半（**0.1.7+**）：无注册调用 —— Config 全字段 `.volatile()`（`@deepseek-ai/schemastery ^3.18.4`），宿主「设置 → 插件配置」自动渲染成表单；0.1.6 及更旧宿主上 `.volatile()` 不存在、插件无法加载（走 ≤ v0.3.1 维护线的 `installSettingsSection(ctx, ns, schema, entry, hooks)` / `settings.register`）
 - `conversation.session.header.utilities`：子槽列表，导航条组件注册 `id: 'tidychat-nav'`（order 100）。**已核实 0.1.2-rc.1 仍存在且被渲染**（契约 `dsh-client-ui-conversation/lib/types/client/contract/slots.d.ts`，实现 `lib/client.js` 的 `renderSlot("conversation.session.header.utilities", {})`）
 - `shell.overlay`：**list 槽 / scope root** 的框架级浮层（默认点击穿透；占位者需自行 `pointer-events: auto`，否则会挡住应用）。首次引导组件注册 `id: 'tidychat-guide'`（契约见 `dsh-client-ui-layout`）
 - DOM 锚点：`data-chat-anchor-key`、`data-chat-flow-kind`（user / think / context …）、`data-variant="think"`、`[data-conversation-scroll]`、`[data-composer-card]`
 - `conversationContextKey` = `${kind.length}:${kind}${id}`
-- API：`settingsScope.bind({ namespace: 'tidychat' })`、`ctx.sessions.binding(sid)`、`installSettingsSection(ctx, ns, schema, entry, hooks)`
+- API：`ctx.configForms.get('tidychat')`（0.1.7+，回退 `settingsScope.bind`）、`ctx.sessions.binding(sid)`；旧宿主（≤ v0.3.1 线）`installSettingsSection(ctx, ns, schema, entry, hooks)`
 - 消息轨取数：`binding.eventSource.getSnapshot().entries`（会话**事件窗** `SessionEventSource`）。**不要用 `session.getSnapshot()` 取消息节点** —— 0.1.2+ 它只返回控制字段（queue/running/hasMore/openState…），没有 `nodes`，按旧假设取数会解析出 0 轮、组件直接 `return null`（零 DOM、无报错）
 - 配置字段（host schema）：`fold` / `divider` / `navigator` / `hideOfficialNav` / `autoLoad` / `navColor`+`navColorCustom`+`navColorLight` / `navAccent`+`navAccentCustom`+`navAccentLight` / `navSide` / `navStyle` / `navRing` / `navGuideSeen`
 - 语义色 token：`--dsw-alias-label-primary/secondary/tertiary/caption`、`--dsw-alias-bg-layer-3`、`--dsw-alias-state-business-primary`、`--dsw-alias-border-l2`
