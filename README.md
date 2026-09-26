@@ -58,7 +58,7 @@
 dsh plugin --profile web add @bananasoldier01/dsh-tidychat
 
 # 方式 2：从 GitHub 安装（推荐钉版本，可复现）
-dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat.git#v0.3.1
+dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat.git#v0.3.2
 ```
 
 安装后重启 dsh web + 硬刷新（Cmd+Shift+R）。
@@ -72,7 +72,7 @@ dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat
 dsh plugin --profile web update @bananasoldier01/dsh-tidychat
 
 # 方式 B：装的是某个 tag，改钉到新 tag 重新 add
-dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat.git#v0.3.1
+dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat.git#v0.3.2
 ```
 
 更新后同样重启 dsh web + 硬刷新。
@@ -83,22 +83,30 @@ dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat
 > curl -sL https://raw.githubusercontent.com/BananaSoldier01/dsh-tidychat/main/scripts/whitelist-patch.sh | bash
 > ```
 >
-> **DSH ≥ 0.1.0-rc.7 不需要**：白名单机制已移除，命名空间由插件动态注册。`0.2.0` 起插件适配 **DSH ≥ 0.1.0-rc.7**（rc.7 把 `settings.plugin.item` 槽由 list 改为 keyed、注册字段由 `id` 改为 `key`，旧写法会报 "Failed to load plugins"）；**DSH ≤ 0.1.0-rc.6 请使用插件 `0.1.0`**。
+> **DSH ≥ 0.1.0-rc.7 不需要**：白名单机制已移除。`0.2.0` 起插件适配 **DSH ≥ 0.1.0-rc.7**（rc.7 把 `settings.plugin.item` 槽由 list 改为 keyed、注册字段由 `id` 改为 `key`，旧写法会报 "Failed to load plugins"）；**DSH ≤ 0.1.0-rc.6 请使用插件 `0.1.0`**。
+>
+> **`0.3.2` 起插件适配 DSH ≥ 0.1.7-rc.1**（设置面改为声明式，见下节；`.volatile()` 在 0.1.6 及更旧宿主上不存在，插件将无法加载）——**DSH 0.1.0-rc.7 ~ 0.1.6 请使用插件 `0.3.1`**。
 
 ## 🧩 兼容性
 
-| DSH 版本 | settings 注册 | 折叠 / 分隔线 / 自动加载 | 消息轨 |
-| --- | --- | --- | --- |
-| 0.1.0-rc.7 ~ 0.1.1-rc.x | `register` | ✅ v0.2.8+ 可用（v0.2.7 无回退，不生效） | ✅ 可用（旧版无官方轨，不需要接管开关） |
-| 0.1.2-alpha.2+ ~ 0.1.2-rc.1 | `installSection` | ✅ 可用 | ✅ **0.3.0 起可用**（0.2.10 及更早取数路径读错快照，轨道解析出 0 轮、实际从未渲染） |
+| DSH 版本 | settings 面 | 插件线 |
+| --- | --- | --- |
+| **0.1.7-rc.1+** | **声明式**：Config `.volatile()` 字段由宿主自动渲染成表单，无注册调用 | **✅ v0.3.2+**；插件自带完整设置卡挂在「插件」设置节的 tab |
+| 0.1.2-alpha.2+ ~ 0.1.6 | `installSection`（0.1.7 起移除） | ≤ v0.3.1 |
+| 0.1.0-rc.7 ~ 0.1.2-alpha.1 | `register`（0.1.7 起移除） | ≤ v0.3.1（折叠 / 分隔线 / 自动加载 v0.2.8+ 可用；消息轨 **0.3.0 起可用**，0.2.10 及更早取数路径读错快照，轨道解析出 0 轮、实际从未渲染） |
 
-- 插件按宿主版本自动选用注册 API，同一份产物在 **0.1.0-rc.7 ~ 0.1.2-rc.1** 都能加载并设置开关。
+- **v0.3.2 起「按宿主版本自动选用注册 API」的多分支不再可行**：0.1.7 把 `installSection` / `register` 一并移除，改为「Config schema 即设置面」（声明式）。`.volatile()` 是 0.1.7 独有方法（旧版调用即抛错），因此 **0.1.7 线（v0.3.2+）与旧宿主线（≤ v0.3.1）必须分开发布**，一份产物无法同时兼容 0.1.6 与 0.1.7。
 - DSH 0.1.2 起官方原生新增「折叠过程内容」与右缘 TurnNavigator，与插件 `fold` / 消息轨重叠，**二选一**即可：用官方的就关插件开关（避免双折叠），想用自己的轨就打开「接管官方消息轨」，否则会看到左右两条轨。
 - 接管是**隐藏而非卸载**：宿主未提供原生开关，开启后官方组件仍会挂载（DOM 保留），停掉的是绘制、布局、交互与滚动跟随。
 
 ## ⚙️ 设置
 
-在「设置 → 插件配置」展开 **会话整理tidychat** 卡片（改动即时生效）：
+v0.3.2（DSH 0.1.7+）有两个设置入口，写的是同一份 entry 配置、均即时生效：
+
+- **宿主自动表单**：「设置 → 插件配置」里由 Config `.volatile()` 字段自动渲染的基础开关；
+- **插件完整设置卡**：「设置 → 插件」节的 **会话整理tidychat** 标签页（含配色调色盘与诊断报告入口）。
+
+旧宿主（≤ 0.1.6，插件 ≤ v0.3.1）仅有「设置 → 插件配置」里的卡片一种入口。各项如下：
 
 | 项 | 配置键 | 默认 | 说明 |
 | --- | --- | --- | --- |
@@ -117,7 +125,7 @@ dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat
 
 ## 🔧 原理
 
-纯浏览器半（`exports "./client"`）实现，host 半只注册 settings 命名空间，不修改任何 DSH 源码：
+纯浏览器半（`exports "./client"`）实现，host 半只声明 Config schema（0.1.7 起 volatile 字段即设置面，无注册调用），不修改任何 DSH 源码：
 
 - 折叠 / 分隔 / 导航全部通过 DOM 结构锚点（`data-chat-anchor-key`、`data-variant="think"` 等契约级属性）定位，不依赖编译期 hash 类名；`MutationObserver` 观察会话 DOM，配合定时兜底扫描，处理流式渲染与历史加载。
 - 展开 / 收起状态为会话内内存态，刷新后恢复默认（全部折叠）。
@@ -125,7 +133,7 @@ dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat
 
 ## 🗺️ 路线图
 
-逐版本变更已迁至 [`CHANGELOG.md`](./CHANGELOG.md)。当前 0.3.1，候选方向：
+逐版本变更已迁至 [`CHANGELOG.md`](./CHANGELOG.md)。当前 0.3.2，候选方向：
 
 1. **Turn Index 层**：conversation DOM → Turn Index（id/element/position/summary），由 fold / navigator / autoload 共享，替代每次全量扫描；等真实 500+ 轮数据再定增量方案。
 2. **运行中回合的已完成步骤折叠**（issue #2）：单轮内执行大量动作时实时折叠已完成步骤，需求强度待验证。

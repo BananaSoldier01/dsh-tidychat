@@ -58,7 +58,7 @@ Prerequisite: DSH (Web) installed, `pnpm` on PATH.
 dsh plugin --profile web add @bananasoldier01/dsh-tidychat
 
 # Option 2: from GitHub (pin a tag for reproducibility)
-dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat.git#v0.3.1
+dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat.git#v0.3.2
 ```
 
 Restart dsh web + hard refresh (Cmd+Shift+R) after installing.
@@ -72,7 +72,7 @@ The plugin is installed as a profile dependency; updating just re-pulls that dep
 dsh plugin --profile web update @bananasoldier01/dsh-tidychat
 
 # Option B: pinned to a tag — re-add pinned to the new tag
-dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat.git#v0.3.1
+dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat.git#v0.3.2
 ```
 
 Restart dsh web + hard refresh after updating.
@@ -83,22 +83,30 @@ Restart dsh web + hard refresh after updating.
 > curl -sL https://raw.githubusercontent.com/BananaSoldier01/dsh-tidychat/main/scripts/whitelist-patch.sh | bash
 > ```
 >
-> **Not needed on DSH ≥ 0.1.0-rc.7**: the whitelist was removed and namespaces register dynamically. Since `0.2.0` the plugin supports **DSH ≥ 0.1.0-rc.7** (rc.7 turned `settings.plugin.item` from a list into keyed slots — `id` → `key` — and the old form errors with "Failed to load plugins"); use plugin **`0.1.0` for DSH ≤ 0.1.0-rc.6**.
+> **Not needed on DSH ≥ 0.1.0-rc.7**: the whitelist was removed. Since `0.2.0` the plugin supports **DSH ≥ 0.1.0-rc.7** (rc.7 turned `settings.plugin.item` from a list into keyed slots — `id` → `key` — and the old form errors with "Failed to load plugins"); use plugin **`0.1.0` for DSH ≤ 0.1.0-rc.6**.
+>
+> **Since `0.3.2` the plugin targets DSH ≥ 0.1.7-rc.1** (declarative settings, see below; `.volatile()` does not exist on 0.1.6 or older hosts, where the plugin fails to load) — **use plugin `0.3.1` for DSH 0.1.0-rc.7 ~ 0.1.6**.
 
 ## 🧩 Compatibility
 
-| DSH version | settings registration | Fold / divider / auto-load | Navigation rail |
-| --- | --- | --- | --- |
-| 0.1.0-rc.7 ~ 0.1.1-rc.x | `register` | ✅ v0.2.8+ (v0.2.7 has no fallback and does not work) | ✅ available (no official rail on old DSH, so no takeover switch needed) |
-| 0.1.2-alpha.2+ ~ 0.1.2-rc.1 | `installSection` | ✅ available | ✅ **since 0.3.0** (on 0.2.10 and earlier the rail read the wrong snapshot, resolved 0 turns and never rendered) |
+| DSH version | settings surface | Plugin line |
+| --- | --- | --- |
+| **0.1.7-rc.1+** | **Declarative**: Config `.volatile()` fields are auto-rendered as a form by the host — no registration calls | **✅ v0.3.2+**; the plugin's full settings card lives in its own tab of the "Plugins" settings section |
+| 0.1.2-alpha.2+ ~ 0.1.6 | `installSection` (removed in 0.1.7) | ≤ v0.3.1 |
+| 0.1.0-rc.7 ~ 0.1.2-alpha.1 | `register` (removed in 0.1.7) | ≤ v0.3.1 (fold / divider / auto-load since v0.2.8; rail **since 0.3.0** — on 0.2.10 and earlier the rail read the wrong snapshot, resolved 0 turns and never rendered) |
 
-- The plugin picks the registration API per host version, so one build loads and registers its toggles across **DSH 0.1.0-rc.7 → 0.1.2-rc.1**.
+- **From v0.3.2 on, the old "pick the registration API per host version" fallback is no longer possible**: 0.1.7 removed `installSection` / `register` outright and replaced them with "the Config schema is the settings surface" (declarative). `.volatile()` is a 0.1.7-only method (it throws on older hosts), so the **0.1.7 line (v0.3.2+) and the legacy line (≤ v0.3.1) must ship separately** — one build cannot span both 0.1.6 and 0.1.7.
 - Since DSH 0.1.2 the host natively folds process content and ships a right-edge TurnNavigator, overlapping the plugin's `fold` / rail: just **pick one** — if you use the native fold, disable the plugin's (avoid double-folding); if you want this plugin's own rail, turn on "Take over the official rail", otherwise you will see two rails, one on each edge.
 - Takeover **hides rather than unmounts**: the host exposes no native switch, so with takeover on the official component stays mounted (its DOM remains) — what stops is painting, layout, interaction and scroll-following.
 
 ## ⚙️ Settings
 
-Expand the **会话整理tidychat** card in "Settings → Plugin Configuration" (changes apply instantly):
+v0.3.2 (DSH 0.1.7+) has two settings entries, both writing the same entry config and applying instantly:
+
+- **Host auto-form**: basic toggles under "Settings → Plugin Configuration", auto-rendered from the Config `.volatile()` fields;
+- **Full plugin settings card**: the **会话整理tidychat** tab in the "Settings → Plugins" section (includes the color pickers and the diagnostics entry).
+
+Legacy hosts (≤ 0.1.6, plugin ≤ v0.3.1) only have the card in "Settings → Plugin Configuration". The items:
 
 | Item | Config key | Default | Description |
 | --- | --- | --- | --- |
@@ -117,7 +125,7 @@ Expand the **会话整理tidychat** card in "Settings → Plugin Configuration" 
 
 ## 🔧 How it works
 
-Pure browser half (`exports "./client"`); the host half only registers the settings namespace — no DSH source modifications:
+Pure browser half (`exports "./client"`); the host half only declares the Config schema (declarative since 0.1.7 — the volatile fields are the settings surface, no registration calls) — no DSH source modifications:
 
 - Fold / divider / navigation locate DOM via contract-level anchors (`data-chat-anchor-key`, `data-variant="think"`, etc.), not compile-time hashed class names; a `MutationObserver` watches the conversation DOM with a periodic fallback scan, handling streaming renders and history loads.
 - Fold state is in-memory per session — refresh resets to defaults (all folded).
@@ -125,7 +133,7 @@ Pure browser half (`exports "./client"`); the host half only registers the setti
 
 ## 🗺️ Roadmap
 
-Per-version changes live in [`CHANGELOG.md`](./CHANGELOG.md). Currently 0.3.1; candidates:
+Per-version changes live in [`CHANGELOG.md`](./CHANGELOG.md). Currently 0.3.2; candidates:
 
 1. **Turn Index layer**: conversation DOM → Turn Index (id/element/position/summary) shared by fold / navigator / autoload, replacing full rescans; incremental maintenance once real 500+ turn data is available.
 2. **Folding completed in-flight steps** (issue #2): fold completed steps live within a single turn that runs many actions. Demand TBD.
