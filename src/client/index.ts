@@ -6,8 +6,9 @@
  * - 导航条：Codex 式左缘细窄条状定位，悬停弹摘要 + 附近条幅联动变长，点击跳转。
  * - 自动加载：发现「加载更早」按钮时自动点击，把全部历史纳入折叠与导航。
  *
- * 四个功能分别由设置命名空间 `tidychat` 的开关控制（fold / divider / navigator / autoLoad），
- * 通过 settingsScope 读取并在设置面板改动时即时生效。
+ * 全部功能由 `tidychat` entry 配置的开关控制（fold / divider / navigator / autoLoad 等），
+ * 浏览器半经 configForms（0.1.7 配置缝）读取并即时生效；设置卡挂在
+ * 「插件」设置节的 tab（settings.plugins.tab）里。
  *
  * 全部副作用都在 apply 内通过 ctx.effect 登记，plugin 停止 / 更新时自动清理。
  */
@@ -17,7 +18,7 @@ import * as React from 'react'
 // 构建时由 tsdown define 注入插件版本（package.json version）
 declare const __PLUGIN_VERSION__: string
 
-export const inject = ['slots', 'sessions'] as const
+export const inject = ['slots', 'sessions', 'configForms'] as const
 
 const CSS = `
 [data-tidychat-divider] {
@@ -633,12 +634,19 @@ export function apply(ctx: any): void {
     }
   }
 
-  // 设置：tidychat 命名空间，四个开关 + 定位条配色（默认色 auto 尊重主题 + 强调色 auto 跟随主题品牌色）；读不到 settings 服务时全开。
+  // 设置：tidychat entry 配置（cordis.patch.yml 的 `- id: tidychat`），全部开关 + 定位条配色
+  // （默认色 auto 尊重主题 + 强调色 auto 跟随主题品牌色）。
+  // 0.1.7 唯一客户端配置缝是 configForms（按 entry id 取表单句柄，face 与旧 scope 同形）；
+  // 旧 webUiSettings/settingsScope 软读保留作回退（0.1.7 宿主上两者不存在，取 undefined 即跳过）。
   const config = { fold: true, divider: true, navigator: true, hideOfficialNav: false, autoLoad: true, navColor: 'auto', navColorCustom: '', navColorLight: 'l3', navAccent: 'auto', navAccentCustom: '', navAccentLight: 'l3', navSide: 'left', navStyle: 'bar', navRing: false, navGuideSeen: false }
   let settingsScope: any = null
-  const settingsFace = ctx.get('webUiSettings') ?? ctx.get('settingsScope')
-  if (settingsFace !== undefined && typeof settingsFace.bind === 'function') {
-    try { settingsScope = settingsFace.bind({ namespace: 'tidychat' }) } catch { settingsScope = null }
+  try { settingsScope = ctx.configForms.get('tidychat') } catch { settingsScope = null }
+  if (settingsScope === null || typeof settingsScope.getSnapshot !== 'function') {
+    const settingsFace = ctx.get('webUiSettings') ?? ctx.get('settingsScope')
+    settingsScope = null
+    if (settingsFace !== undefined && typeof settingsFace.bind === 'function') {
+      try { settingsScope = settingsFace.bind({ namespace: 'tidychat' }) } catch { settingsScope = null }
+    }
   }
 
   const cleanTiming = (raw: string): string => {
@@ -2235,7 +2243,8 @@ export function apply(ctx: any): void {
         React.createElement('p', { className: 'tidychat-field-hint' }, hint),
       )
     }
-    return React.createElement('li', { className: 'tidychat-card' + (open ? ' tidychat-card-open' : '') },
+    // tab panel 语境（settings.plugins.tab）不是列表，卡片根用 div 而非 li。
+    return React.createElement('div', { className: 'tidychat-card' + (open ? ' tidychat-card-open' : '') },
       React.createElement('button', {
         type: 'button',
         className: 'tidychat-card-header',
@@ -2330,11 +2339,12 @@ export function apply(ctx: any): void {
     )
   }
 
-  // rc.7 起 settings.plugin.item 改为 keyed 槽（按命名空间键控分发，消费端
-  // renderSlot(..., { entryKey: ns })），注册必须用 key 而不是 id；
-  // key 值 = 本插件的 settings 命名空间 'tidychat'，与旧版 id 相同。
-  ctx.slots.inject('settings.plugin.item', () => ctx.slots.register(
-    { name: 'settings.plugin.item', key: 'tidychat', order: 100, inject: () => ({}) },
+  // 设置卡挂载：「插件」设置节（settings.plugins.tab，0.1.7 保留席位）里开一个
+  // 本插件 tab（0.1.2~0.1.6 的 settings.plugin.item 卡片席位已随设置面重构移除），
+  // 原设置卡（含配色调色盘与诊断报告入口）原样塞入。
+  // 卡片读写 tidychat entry 的 volatile 配置；configForms 缺席时卡片自降级为只读默认。
+  ctx.slots.inject('settings.plugins.tab', () => ctx.slots.register(
+    { name: 'settings.plugins.tab', id: 'tidychat', order: 60, label: () => '会话整理 tidychat', inject: () => ({}) },
     TidychatSettingsCard,
   ))
 }
