@@ -1545,9 +1545,12 @@ export function apply(ctx: any): void {
   // hover 取值用 -1 表示停在提示带上（真实标记索引 ≥ 0），避免再开一个 state
   const NAV_RAIL_CAP_INDEX = -1
   const HEADER_OFFSET = 64
-  // 外圈（独立开关 navRing）：1px 描边、外扩 2px，画在插件自己的横线/圆点包围盒之外，仅当前轮与悬停轮。
-  const NAV_RAIL_RING_W = 1
+  // 光晕外衬（独立开关 navRing）：半透明同色 halo，画在插件自己的横线/圆点包围盒之外，
+  // 仅当前轮与悬停轮；当前轮浓、悬停轮淡。OFFSET = 标记到光晕内缘的留白。
+  const NAV_RAIL_RING_W = 3
   const NAV_RAIL_RING_OFFSET = 2
+  const NAV_RAIL_RING_ALPHA_CURRENT = 0.45
+  const NAV_RAIL_RING_ALPHA_HOVER = 0.25
 
   // 轨道高度自适应：turn 少时按 12px/轮 收紧（不用最大高度），turn 多时封顶 min(70vh, 660px)
   const railHeight = (n: number): number => Math.min(Math.min(window.innerHeight * 0.7, 660), Math.max(NAV_RAIL_MIN_HEIGHT, n * NAV_RAIL_TURN_SPACING))
@@ -1745,24 +1748,30 @@ export function apply(ctx: any): void {
           return { x: mirror ? W - len : 0, y: y - NAV_RAIL_BAR_H / 2, w: len, h: NAV_RAIL_BAR_H, dot: false }
         }
         if (config.navRing === true) {
-          const ringOffset = NAV_RAIL_RING_OFFSET
+          // 光晕外衬：同强调色的半透明 halo（学官方 TurnNavigator 的透镜观感），
+          // 替换 0.3.1 的 1px 实线描边。当前轮浓、悬停轮淡；OFFSET 语义变为
+          // 「标记到光晕内缘的留白」，路径半径按线宽外推半个线宽，光晕整体
+          // 落在标记包围盒之外、不压到标记本身。globalAlpha 画完即复位。
+          const ringOffset = NAV_RAIL_RING_OFFSET + NAV_RAIL_RING_W / 2
           ctx.strokeStyle = hotColor
           ctx.lineWidth = NAV_RAIL_RING_W
           for (let i = 0; i < n; i++) {
             const isCurrent = current === i
             const isHover = hover === i
             if (!isCurrent && !isHover) continue
+            ctx.globalAlpha = isCurrent ? NAV_RAIL_RING_ALPHA_CURRENT : NAV_RAIL_RING_ALPHA_HOVER
             const b = boxOf(i, positions[i], isCurrent, isHover)
             if (b.dot) {
               ctx.beginPath()
               ctx.arc(b.x + b.w / 2, b.y + b.h / 2, b.w / 2 + ringOffset, 0, Math.PI * 2)
               ctx.stroke()
             } else {
-              // 横线外圈取胶囊形（圆角 = 半高 + 外扩），与圆头短横的观感一致
+              // 横线光晕取胶囊形（圆角 = 半高 + 外扩），与圆头短横的观感一致
               roundRectPath(ctx, b.x - ringOffset, b.y - ringOffset, b.w + ringOffset * 2, b.h + ringOffset * 2, b.h / 2 + ringOffset)
               ctx.stroke()
             }
           }
+          ctx.globalAlpha = 1
         }
         // ===== 顶部「更早历史未加载」提示带 =====
         // 向上箭头（悬停时用强调色）+ 到首条标记的虚线，暗示轨道上方还有未加载内容；点击触发加载。
@@ -2268,7 +2277,7 @@ export function apply(ctx: any): void {
             React.createElement('span', { className: 'tidychat-field-label' }, '外圈'),
           ),
           chipRow(NAV_RING_OPTIONS, value.navRing === true ? 'on' : 'off', (k) => setColor('navRing', k === 'on'), !writable),
-          React.createElement('p', { className: 'tidychat-field-hint' }, '位置 = 消息轨贴会话区左缘或右缘，右缘时整体镜像（横线模式的强调三角指左、摘要卡从左侧弹出）；样式 = 横线或圆点，圆点模式同样保留悬停鱼眼放大与点击跳转；外圈 = 在当前轮与悬停轮的标记外描一圈强调色（1px、外扩 2px），横线为胶囊形、圆点为正圆环，颜色跟随下方「强调色」。'),
+          React.createElement('p', { className: 'tidychat-field-hint' }, '位置 = 消息轨贴会话区左缘或右缘，右缘时整体镜像（横线模式的强调三角指左、摘要卡从左侧弹出）；样式 = 横线或圆点，圆点模式同样保留悬停鱼眼放大与点击跳转；外圈 = 在当前轮与悬停轮的标记外叠一层同色半透明光晕（当前轮浓、悬停轮淡），横线为胶囊形、圆点为正圆环，颜色跟随下方「强调色」。'),
           // 误点关闭后想再看一次时用；只在「插件轨 + 官方轨并存」的场景才会再次弹出
           React.createElement('button', {
             type: 'button',
