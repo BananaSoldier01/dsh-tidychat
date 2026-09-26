@@ -109,8 +109,8 @@ Expand the **会话整理tidychat** card in "Settings → Plugin Configuration" 
 | Smart earlier-history load | `autoLoad` | on | Loads older records while idle, pausing automatically when responsiveness drops |
 | Position | `navSide` | left | `left` / `right` (right mirrors everything: bars grow leftward, the accent arrow points left, the hover card opens to the left) |
 | Style | `navStyle` | line | `bar` line / `dot` dot; both keep the fish-eye zoom and click-to-jump |
-| Ring | `navRing` | off | Accent outline (1px, offset 2px) around the current and hovered marks; a capsule for lines and a true circle for dots |
-| Colors (advanced, collapsible) | `navColor` `navAccent` … | auto | Default color and accent each offer auto / custom. Auto: the default color uses the host muted label, switching to a corrective gray when contrast vs the chat background is insufficient; the accent follows the theme brand color. Custom: native picker (continuous) or an exact HEX / `rgb()` / `rgba()` value plus an alpha slider. The accent also drives the current/hover highlight and the ring stroke |
+| Ring | `navRing` | off | Translucent same-color halo around the current and hovered marks (stronger for current, softer for hover); a capsule for lines and a true circle for dots |
+| Colors (advanced, collapsible) | `navColor` `navAccent` … | auto | Default color and accent each offer auto / custom. Auto: the default color uses the host muted label, switching to a corrective gray when contrast vs the chat background is insufficient; the accent follows the theme brand color. Custom: native picker (continuous) or an exact HEX / `rgb()` / `rgba()` value plus an alpha slider. The accent also drives the current/hover highlight and the ring halo |
 | First-run guide | `navGuideSeen` | off | Shows a one-time guide when both rails are present; "Show the first-run guide again" recalls it any time |
 
 > New defaults only affect fresh installs — existing installs keep the values already materialised in their settings, so a historical `navigator: false` must be turned on manually.

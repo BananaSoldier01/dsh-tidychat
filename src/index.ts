@@ -40,7 +40,7 @@ export interface Config {
   navSide?: string
   /** 定位条样式：bar（横线，默认）/ dot（圆点，保留鱼眼放大交互）。 */
   navStyle?: string
-  /** 定位条外圈：在插件自己的横线/圆点外描一圈强调色（1px 描边、外扩 2px），仅当前轮与悬停轮。 */
+  /** 定位条外圈：在插件自己的横线/圆点外叠一层同色半透明光晕（当前轮浓、悬停轮淡），仅当前轮与悬停轮。 */
   navRing?: boolean
   /** 首次引导是否已看过：false（默认）时，若检测到插件轨与官方 TurnNavigator 并存，会弹一次选择向导；点过任意选项或“知道了”后置为 true。 */
   navGuideSeen?: boolean

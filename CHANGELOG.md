@@ -4,6 +4,12 @@
 
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [SemVer](https://semver.org/lang/zh-CN/)。
 
+## [Unreleased]
+
+### Changed — 定位条
+
+- **外圈改为半透明光晕**：`navRing` 开启时，当前轮 / 悬停轮标记外的强调色描边由 1px 实线改为**同色半透明光晕**（3px、内缘留白 2px，学官方 TurnNavigator 的透镜观感）；当前轮 alpha 0.45、悬停轮 0.25 两档浓度。形状不变（横线胶囊形、圆点正圆环），开关、颜色来源（强调色）、触发条件（仅当前轮与悬停轮）均不变。
+
 ## [0.3.1] — 2026-09-16
 
 消息轨在「更早历史未加载」时的可发现性 + 一处落点错位修复。
