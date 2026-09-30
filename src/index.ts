@@ -1,18 +1,29 @@
 /**
- * dsh-tidychat host 半：注册 settings 命名空间与配置 schema，让「设置 > 插件配置」
- * 面板能可视化开关四个功能。实际功能全部在浏览器半（exports "./client"）。
+ * dsh-tidychat host 半：声明式配置 schema，让设置面板能可视化开关全部功能。
+ * 实际功能全部在浏览器半（exports "./client"）。
  *
- * 本插件宿主侧不消费配置值（仅注册命名空间以暴露给配置面板）；
- * 浏览器半通过 settingsScope 读取同一命名空间并即时生效。
+ * DSH 0.2.x（自 0.1.7 起）settings 为声明式：本插件不再注册任何命名空间。
+ * Config 中标 .volatile() 的字段由宿主设置面板自动渲染成表单。
+ * .volatile() 由 @deepseek-ai/schemastery ^3.18.4 提供；0.1.6 及更旧宿主上
+ * 调用会抛 TypeError，故本线（0.4.0+）只支持 DSH 0.2.x。
+ * 0.1.0-rc.7 ~ 0.1.6 请使用插件 0.3.1。
+ *
+ * 宿主侧不消费配置值（仅声明 schema，apply 为空实现，无需订阅
+ * loader/volatile-update）。浏览器半经 configForms 读取同一 entry 配置并即时生效，
+ * 设置卡挂在 settings.plugins.tab（设置 → 内置插件）。
  */
 
 import type { Context } from '@deepseek-ai/cordis'
-import z from 'schemastery'
+import z from '@deepseek-ai/schemastery'
 
-/** 设置命名空间（v0.1.3-alpha.1 起 settings 用小写连字符字符串命名空间注册，不再经 settingsNamespace()）。 */
+/** 设置命名空间（浏览器半按该 id 读取；0.2 上即 profile entry 的 local id）。 */
 export const TIDYCHAT_SETTINGS_NAMESPACE = 'tidychat' as const
 
-/** 插件配置。 */
+/**
+ * 插件配置。运行时（apply 收到的组合条目里）标 volatile 的字段是宿主下发的
+ * live 引用（Volatile<T>，读值需 .get() 解引）；宿主侧不消费，故类型保持
+ * 面向用户的普通值形态。
+ */
 export interface Config {
   /** 已完成轮次自动折叠（思考/工具调用/中间文字，只留最终结论）。 */
   fold?: boolean
@@ -57,41 +68,29 @@ export const NAV_SIDE_KEYS = ['left', 'right'] as const
 /** 定位条样式枚举。 */
 export const NAV_STYLE_KEYS = ['bar', 'dot'] as const
 
-export const Config: z<Config> = z.object({
-  fold: z.boolean().default(true),
-  divider: z.boolean().default(true),
-  navigator: z.boolean().default(true),
-  hideOfficialNav: z.boolean().default(false),
-  autoLoad: z.boolean().default(true),
-  navColor: z.union(NAV_HUE_KEYS).default('auto'),
-  navColorCustom: z.string().default(''),
-  navColorLight: z.union(NAV_LIGHT_KEYS).default('l3'),
-  navAccent: z.union(NAV_ACCENT_KEYS).default('auto'),
-  navAccentCustom: z.string().default(''),
-  navAccentLight: z.union(NAV_LIGHT_KEYS).default('l3'),
-  navSide: z.union(NAV_SIDE_KEYS).default('left'),
-  navStyle: z.union(NAV_STYLE_KEYS).default('bar'),
-  navRing: z.boolean().default(false),
-  navGuideSeen: z.boolean().default(false),
+// DSH 0.2：全部字段标 volatile —— 它们就是设置面板的全部内容，且只有 volatile
+// 字段支持免 remount 的即时生效。schema 调用的输出会把 volatile 字段包成 live 引用。
+export const Config = z.object({
+  fold: z.boolean().default(true).volatile(),
+  divider: z.boolean().default(true).volatile(),
+  navigator: z.boolean().default(true).volatile(),
+  hideOfficialNav: z.boolean().default(false).volatile(),
+  autoLoad: z.boolean().default(true).volatile(),
+  navColor: z.union(NAV_HUE_KEYS).default('auto').volatile(),
+  navColorCustom: z.string().default('').volatile(),
+  navColorLight: z.union(NAV_LIGHT_KEYS).default('l3').volatile(),
+  navAccent: z.union(NAV_ACCENT_KEYS).default('auto').volatile(),
+  navAccentCustom: z.string().default('').volatile(),
+  navAccentLight: z.union(NAV_LIGHT_KEYS).default('l3').volatile(),
+  navSide: z.union(NAV_SIDE_KEYS).default('left').volatile(),
+  navStyle: z.union(NAV_STYLE_KEYS).default('bar').volatile(),
+  navRing: z.boolean().default(false).volatile(),
+  navGuideSeen: z.boolean().default(false).volatile(),
 })
 
 export const inject: string[] = []
 
-export function apply(ctx: Context, config?: Config): void {
-  // 注册 settings 命名空间；宿主侧不消费，setSource/onChange 留空。
-  // settings API 在不同 DSH 版本不同（0.1.2+ 移除了 installSettingsSection/settingsNamespace）：
-  //   - 0.1.2-rc.1+: ctx.settings.installSection(owner, ns, schema, entry, hooks)
-  //   - 0.1.0-rc.7 / 0.1.1-rc.x: ctx.settings.register(ns, schema, { base })（register 在所有目标版本都存在）
-  // 两者都兼容：优先 installSection（保持 0.1.2 行为不变），否则回退 register。极端旧版本无 register 时静默跳过，保证插件至少能加载。
-  ctx.inject(['settings'], (settingsCtx) => {
-    const settings = (settingsCtx as any).settings
-    if (typeof settings?.installSection === 'function') {
-      settings.installSection(ctx, TIDYCHAT_SETTINGS_NAMESPACE, Config, config ?? {}, {
-        setSource: () => {},
-        onChange: () => {},
-      })
-    } else if (typeof settings?.register === 'function') {
-      settings.register(TIDYCHAT_SETTINGS_NAMESPACE, Config, { base: config ?? {} })
-    }
-  })
+export function apply(_ctx: Context, _config?: Config): void {
+  // DSH 0.2 设置面为声明式：Config 的 volatile 字段由宿主自动渲染，没有注册调用。
+  // 宿主侧不消费配置值。设置变更的即时生效由浏览器半对 configForms 的订阅驱动。
 }
