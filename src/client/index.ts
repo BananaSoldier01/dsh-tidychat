@@ -6,8 +6,9 @@
  * - 导航条：Codex 式左缘细窄条状定位，悬停弹摘要 + 附近条幅联动变长，点击跳转。
  * - 自动加载：发现「加载更早」按钮时自动点击，把全部历史纳入折叠与导航。
  *
- * 四个功能分别由设置命名空间 `tidychat` 的开关控制（fold / divider / navigator / autoLoad），
- * 通过 settingsScope 读取并在设置面板改动时即时生效。
+ * 全部功能由 `tidychat` entry 配置的开关控制（fold / divider / navigator / autoLoad 等），
+ * 浏览器半经 configForms（DSH 0.2 配置缝）读取并即时生效；设置卡挂在
+ * 「内置插件」设置节的 tab（settings.plugins.tab）里。
  *
  * 全部副作用都在 apply 内通过 ctx.effect 登记，plugin 停止 / 更新时自动清理。
  */
@@ -17,7 +18,7 @@ import * as React from 'react'
 // 构建时由 tsdown define 注入插件版本（package.json version）
 declare const __PLUGIN_VERSION__: string
 
-export const inject = ['slots', 'sessions'] as const
+export const inject = ['slots', 'sessions', 'configForms'] as const
 
 const CSS = `
 [data-tidychat-divider] {
@@ -105,15 +106,14 @@ const CSS = `
   overflow: hidden;
   transition: opacity .18s ease, height .18s ease, margin .18s ease, padding .18s ease;
 }
-/* 接管官方右缘消息轨（DSH 0.1.2+ 原生 TurnNavigator）：仅当根元素带
+/* 接管官方右缘消息轨（DSH 0.2 原生 TurnNavigator）：仅当根元素带
    data-tidychat-hide-official-nav 时生效（由 applyOfficialNavTakeover 切换）。
-   官方类名是 CSS Module 产物 <hash>_slot / <hash>_frame，hash 随构建变化，
-   禁止硬编码；故用「局部名子串 + 结构 + 内联 style 变量」三重锚定：
-     - [class*="_slot"]:has(> nav[class*="_frame"])  外层 sticky 容器（hash-0 时也命中）
-     - [style*="--turn-natural-position"]            官方 itemPosition() 对每轮必写的内联变量
+   官方类名是 CSS Module 产物 <hash>_slot / <hash>_frame，hash 随构建变化，禁止硬编码。
+   0.2.0-rc.2 改为虚拟列表，不再写 --turn-natural-position；结构仍是
+   div.<hash>_slot > nav.<hash>_frame（已对发布包核对）。
    隐藏而非卸载：官方组件仍挂载（React 重渲染会还原被删节点）。 */
 html[data-tidychat-hide-official-nav] [class*="_slot"]:has(> nav[class*="_frame"]),
-html[data-tidychat-hide-official-nav] nav[class*="_frame"]:has([style*="--turn-natural-position"]) {
+html[data-tidychat-hide-official-nav] [class*="_slot"] > nav[class*="_frame"] {
   display: none !important;
 }
 .tidychat-nav-rail {
@@ -633,12 +633,15 @@ export function apply(ctx: any): void {
     }
   }
 
-  // 设置：tidychat 命名空间，四个开关 + 定位条配色（默认色 auto 尊重主题 + 强调色 auto 跟随主题品牌色）；读不到 settings 服务时全开。
+  // 设置：tidychat entry 配置（cordis.patch.yml 的 `- id: tidychat`），全部开关 + 定位条配色
+  // （默认色 auto 尊重主题 + 强调色 auto 跟随主题品牌色）。读不到配置缝时用上面的默认值。
+  // DSH 0.2 的客户端配置缝是 configForms.get(entryId)，face 与旧 scope 同形
+  // （getSnapshot / subscribe / set，快照含 status / value / writable）。
   const config = { fold: true, divider: true, navigator: true, hideOfficialNav: false, autoLoad: true, navColor: 'auto', navColorCustom: '', navColorLight: 'l3', navAccent: 'auto', navAccentCustom: '', navAccentLight: 'l3', navSide: 'left', navStyle: 'bar', navRing: false, navGuideSeen: false }
   let settingsScope: any = null
-  const settingsFace = ctx.get('webUiSettings') ?? ctx.get('settingsScope')
-  if (settingsFace !== undefined && typeof settingsFace.bind === 'function') {
-    try { settingsScope = settingsFace.bind({ namespace: 'tidychat' }) } catch { settingsScope = null }
+  try { settingsScope = ctx.configForms.get('tidychat') } catch { settingsScope = null }
+  if (settingsScope === null || typeof settingsScope.getSnapshot !== 'function') {
+    settingsScope = null
   }
 
   const cleanTiming = (raw: string): string => {
@@ -2035,7 +2038,9 @@ export function apply(ctx: any): void {
   // 旧版 DSH（0.1.0-rc.7 ~ 0.1.1-rc.x）没有官方轨，没什么可解释的 → 不打扰。
   const officialRailPresent = (): boolean => {
     try {
-      // 不硬编码 CSS Module 的 hash 类名（随构建变化）：锚在局部名 + 官方给每轮写入的内联变量
+      // 不硬编码 CSS Module hash。0.2.0-rc.2 的 TurnNavigator 是
+      // [class*="_slot"] > nav[class*="_frame"]，不再写 --turn-natural-position。
+      if (document.querySelector('[class*="_slot"] > nav[class*="_frame"]') !== null) return true
       if (document.querySelector('nav[class*="_frame"] [style*="--turn-natural-position"]') !== null) return true
       return document.querySelector('nav[class*="_frame"]') !== null
     } catch { return false }
@@ -2090,7 +2095,7 @@ export function apply(ctx: any): void {
         React.createElement('div', { className: 'tidychat-guide-body' },
           React.createElement('div', null, '· ', React.createElement('b', null, '左缘'), '：本插件（可贴左/贴右、横线/圆点、外圈、调色盘）'),
           React.createElement('div', null, '· ', React.createElement('b', null, '右缘'), '：DSH 官方 TurnNavigator（0.1.2+ 自带）'),
-          React.createElement('div', null, '两者取其一或都留着都行；开关都在「设置 → 插件配置 → 会话整理tidychat」里，随时可改。'),
+          React.createElement('div', null, '两者取其一或都留着都行；开关都在「设置 → 内置插件 → 会话整理 tidychat」里，随时可改。'),
         ),
         React.createElement('div', { className: 'tidychat-guide-actions' },
           React.createElement('button', {
@@ -2120,7 +2125,7 @@ export function apply(ctx: any): void {
     TidychatGuide,
   ))
 
-  // 设置卡片（「设置 > 插件配置」里的四个开关，写入 tidychat 命名空间并即时生效）
+  // 设置卡片（「设置 → 内置插件」tab，写入 tidychat entry 的 volatile 配置并即时生效）
   const TidychatSettingsCard = () => {
     const [open, setOpen] = React.useState(false)
     const [colorOpen, setColorOpen] = React.useState(false)
@@ -2235,7 +2240,8 @@ export function apply(ctx: any): void {
         React.createElement('p', { className: 'tidychat-field-hint' }, hint),
       )
     }
-    return React.createElement('li', { className: 'tidychat-card' + (open ? ' tidychat-card-open' : '') },
+    // tab panel（settings.plugins.tab）不是列表，卡片根用 div 而非 li。
+    return React.createElement('div', { className: 'tidychat-card' + (open ? ' tidychat-card-open' : '') },
       React.createElement('button', {
         type: 'button',
         className: 'tidychat-card-header',
@@ -2330,11 +2336,11 @@ export function apply(ctx: any): void {
     )
   }
 
-  // rc.7 起 settings.plugin.item 改为 keyed 槽（按命名空间键控分发，消费端
-  // renderSlot(..., { entryKey: ns })），注册必须用 key 而不是 id；
-  // key 值 = 本插件的 settings 命名空间 'tidychat'，与旧版 id 相同。
-  ctx.slots.inject('settings.plugin.item', () => ctx.slots.register(
-    { name: 'settings.plugin.item', key: 'tidychat', order: 100, inject: () => ({}) },
+  // 设置卡挂载：settings.plugins.tab（DSH 0.2「内置插件」设置节的 list 槽）。
+  // 0.1.2~0.1.6 的 settings.plugin.item 已随 0.1.7 设置面重构移除。
+  // 原设置卡（含配色调色盘与诊断报告入口）原样塞入；configForms 缺席时卡片只读默认。
+  ctx.slots.inject('settings.plugins.tab', () => ctx.slots.register(
+    { name: 'settings.plugins.tab', id: 'tidychat', order: 60, label: () => '会话整理 tidychat', inject: () => ({}) },
     TidychatSettingsCard,
   ))
 }

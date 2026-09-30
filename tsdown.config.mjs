@@ -1,4 +1,3 @@
-import type { UserConfig } from 'tsdown'
 import { createRequire } from 'node:module'
 
 const require = createRequire(import.meta.url)
@@ -8,7 +7,7 @@ const ID = '@bananasoldier01/dsh-tidychat'
 // 客户端 bundle 允许 external 的宿主模块（由 loader 的 require 提供）。
 const EXTERNALS = ['react', 'react/jsx-runtime']
 
-const libConfig: UserConfig = {
+const libConfig = {
   name: ID,
   entry: ['src/index.ts'],
   outDir: 'lib',
@@ -18,11 +17,11 @@ const libConfig: UserConfig = {
   dts: false,
   clean: false,
   deps: {
-    neverBundle: ['@deepseek-ai/dsh-settings', 'schemastery'],
+    neverBundle: ['@deepseek-ai/dsh-settings', '@deepseek-ai/schemastery'],
   },
 }
 
-const clientConfig: UserConfig = {
+const clientConfig = {
   name: `${ID}/client`,
   entry: { client: 'src/client/index.ts' },
   outDir: 'lib',
@@ -34,7 +33,7 @@ const clientConfig: UserConfig = {
   clean: false,
   deps: {
     neverBundle: [...EXTERNALS],
-    alwaysBundle: (id: string) => !EXTERNALS.includes(id),
+    alwaysBundle: (id) => !EXTERNALS.includes(id),
   },
   outputOptions: {
     entryFileNames: 'client.js',

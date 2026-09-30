@@ -1,6 +1,6 @@
 # dsh-tidychat 交接文档（HANDOVER）
 
-> 面向：接续开发的新会话 / 新协作者。内容基于 **v0.3.1（main）** 快照。仓库根目录：`/Users/wuke/工作文件/DeepSeek_Harness/dsh-tidychat`（本机 link 模式开发）。
+> 面向：接续开发的新会话 / 新协作者。内容基于 **v0.4.0（feat/dsh-0.2.0-compat）** 快照。仓库根目录：`/Users/wuke/工作文件/DeepSeek_Harness/dsh-tidychat`（本机 link 模式开发）。
 
 ---
 
@@ -10,9 +10,9 @@
 
 - 仓库：https://github.com/BananaSoldier01/dsh-tidychat（owner：BananaSoldier01）
 - fork：https://github.com/drscrewdriver/dsh-tidychat（origin；upstream = 上面的原仓库）
-- npm：`@bananasoldier01/dsh-tidychat`（public，最新 **0.3.1**）
+- npm：`@bananasoldier01/dsh-tidychat`（public。**0.4.0+ = DSH 0.2.x**，dist-tag `dsh-0.2`；**0.3.1 = DSH 0.1.0-rc.7 ~ 0.1.6 的最后一版**。0.4.0 尚未发布）
 - 插件索引：**awesome-dsh-plugin 已收录**（PR #3067 合并，session 分类 + 截图），即 dsh-market 源
-- 当前版本线：v0.2.0 → v0.3.0（0.2.0 导航条大版本；0.2.1 配色；0.2.2 提示卡可读性；0.2.3 配色/publish 准备；0.2.4 npm 元数据；0.2.5 Hardening；0.2.6 折叠/分隔线重做；0.2.7 settings API 向后兼容；0.2.8 旧版 DSH 折叠回退；0.2.9 调色盘配色；**0.3.0 接管官方消息轨 + 外圈 + 0.1.2+ 取数路径修复 + 首次引导 + 设置项重排 + 跳转滚动缓动；0.3.1 「更早历史未加载」提示带 + 一键加载、点击标记落点错位修复**）
+- 当前版本线：v0.2.0 → v0.3.0（0.2.0 导航条大版本；0.2.1 配色；0.2.2 提示卡可读性；0.2.3 配色/publish 准备；0.2.4 npm 元数据；0.2.5 Hardening；0.2.6 折叠/分隔线重做；0.2.7 settings API 向后兼容；0.2.8 旧版 DSH 折叠回退；0.2.9 调色盘配色；**0.3.0 接管官方消息轨 + 外圈 + 0.1.2+ 取数路径修复 + 首次引导 + 设置项重排 + 跳转滚动缓动；0.3.1 「更早历史未加载」提示带 + 一键加载、点击标记落点错位修复；0.4.0 DSH 0.2.x 声明式设置（volatile 自动成表 + configForms + 设置卡迁 settings.plugins.tab）**）
 - 分支：PR #10（`feat/rail-mirror-and-dots`）**已并入 main**（merge commit `34bc43c`，0.3.0 发布）；后续维护者改动在其之上（首次引导 / 设置项重排 / 滚动缓动）。`shadow/main` 备用主线已无必要
 
 ---
@@ -22,7 +22,7 @@
 ```
 dsh-tidychat/
 ├── src/
-│   ├── index.ts              # host 半：settings 命名空间注册 + z<Config> schema（z.union 枚举）
+│   ├── index.ts              # host 半：声明式 Config（全字段 .volatile()，无 register/installSection）
 │   └── client/
 │       └── index.ts          # 浏览器半：全部逻辑（约 2000 行单文件，尚未拆分）
 ├── lib/                      # 构建产物（git 跟踪！link 模式实际被服务的就是它）
@@ -34,14 +34,14 @@ dsh-tidychat/
 ├── scripts/whitelist-patch.sh # DSH ≤ rc.6 的 settings 白名单补丁（幂等）
 ├── .github/ISSUE_TEMPLATE/   # bug_report.yml / feature_request.yml
 ├── cordis.patch.yml          # dsh.bundle 的 patch 声明
-├── package.json              # 0.3.1；dsh.bundle 清单；peerDependencies（dsh-settings/react）
-│                             # dependencies 仅 schemastery；files 白名单；prepublishOnly=pnpm build
-│                             # ⚠️ 元数据冻结：除 version / description 外不得改动
-├── tsdown.config.ts          # 构建配置；用 createRequire 读 package.json 版本 → __PLUGIN_VERSION__
+├── package.json              # 0.4.0；dsh.bundle 清单；peer dsh-settings >=0.2.0-rc.2 <0.3.0-0 + react
+│                             # dependencies：@deepseek-ai/schemastery ^3.18.4；engines.dsh 同 peer 范围
+│                             # publishConfig.tag = dsh-0.2；files 白名单；prepublishOnly=pnpm build
+├── tsdown.config.mjs         # 构建配置（纯 JS，Node 20 可直接加载）；createRequire 读版本 → __PLUGIN_VERSION__
 ├── tsconfig.json
 ├── README.md                 # 中文默认（npm/GitHub 首页展示）—— 只放当前能力与用法（~142 行）
 ├── README.en.md              # 英文全量版；两文件顶部互链，小节结构逐行对齐
-├── CHANGELOG.md              # 逐版本变更（0.1.1 → 0.3.1）；README 的路线图历史已迁到此处
+├── CHANGELOG.md              # 逐版本变更（0.1.1 → 0.4.0）；README 的路线图历史已迁到此处
 ├── HANDOVER.md               # 本文件
 └── LICENSE (MIT)
 ```
@@ -52,14 +52,17 @@ dsh-tidychat/
 
 ---
 
-## 2. DSH 契约点（已验证 0.1.0-rc.7 → 0.1.1-rc.2 稳定）
+## 2. DSH 契约点（0.4.0 起目标 DSH 0.2.x，按 0.2.0-rc.2 发布包核对）
 
-- `settings.plugin.item`：**keyed 槽**（rc.7 起由 list 改为 keyed），注册必须 `key: 'tidychat'`（同命名空间），旧 `id` 写法会报 "Failed to load plugins"
-- `conversation.session.header.utilities`：子槽列表，导航条组件注册 `id: 'tidychat-nav'`（order 100）。**已核实 0.1.2-rc.1 仍存在且被渲染**（契约 `dsh-client-ui-conversation/lib/types/client/contract/slots.d.ts`，实现 `lib/client.js` 的 `renderSlot("conversation.session.header.utilities", {})`）
-- `shell.overlay`：**list 槽 / scope root** 的框架级浮层（默认点击穿透；占位者需自行 `pointer-events: auto`，否则会挡住应用）。首次引导组件注册 `id: 'tidychat-guide'`（契约见 `dsh-client-ui-layout`）
-- DOM 锚点：`data-chat-anchor-key`、`data-chat-flow-kind`（user / think / context …）、`data-variant="think"`、`[data-conversation-scroll]`、`[data-composer-card]`
+- `settings.plugins.tab`（**0.2.x / 0.1.7+**）：「内置插件」设置节的 list 槽。设置卡注册 `id: 'tidychat'`、`order: 60`、`label: () => '会话整理 tidychat'`。0.1.2~0.1.6 的 `settings.plugin.item`（keyed，`key: 'tidychat'`）已移除；那条席位只存在于 ≤ v0.3.1
+- `ctx.configForms.get('tidychat')`（**0.2.x**）：客户端配置缝，face 与旧 scope 同形（`getSnapshot` / `subscribe` / `set`，快照 `{ status, value, writable, … }`）。服务由 `@deepseek-ai/dsh-client-ui-settings` 提供；客户端 `inject` 含 `configForms`。旧 `webUiSettings` / `settingsScope` 在 0.2 上不存在
+- host 半（**0.2.x**）：无注册调用。Config 全字段 `.volatile()`（`@deepseek-ai/schemastery ^3.18.4`），宿主按 entry id 自动成表。`apply` 为空。0.1.6 及更旧宿主上 `.volatile()` 不存在（走 0.3.1 的 `installSection` / `register`）
+- **安装门**（`@deepseek-ai/dsh-app-boot` 0.2.0-rc.2）：比对 peer 里的 `@deepseek-ai/dsh` 与 `@deepseek-ai/dsh-*` 和 `getDshRuntimeVersion()`，`semver.satisfies(runtime, range, { includePrerelease: true })`。**不读 `engines.dsh`**。`<0.2.0-0` 会拒绝 0.2.0-rc.2。本线 peer / engines.dsh 都是 `>=0.2.0-rc.2 <0.3.0-0`
+- `conversation.session.header.utilities`：子槽列表，导航条组件注册 `id: 'tidychat-nav'`（order 100）。**0.2.0-rc.2 的 `dsh-client-ui-conversation` 契约仍声明该槽**
+- `shell.overlay`：**list 槽 / scope root** 的框架级浮层（默认点击穿透；占位者需自行 `pointer-events: auto`，否则会挡住应用）。首次引导组件注册 `id: 'tidychat-guide'`。**0.2.0-rc.2 的 `dsh-client-ui-layout` 仍渲染该槽**
+- DOM 锚点：`data-chat-anchor-key`、`data-chat-flow-kind`（user / think / context …）、`data-variant="think"`、`[data-conversation-scroll]`、`[data-composer-card]`、`data-chat-turn`（0.2.0-rc.2 的 ui-chat 仍写这些属性）
 - `conversationContextKey` = `${kind.length}:${kind}${id}`
-- API：`settingsScope.bind({ namespace: 'tidychat' })`、`ctx.sessions.binding(sid)`、`installSettingsSection(ctx, ns, schema, entry, hooks)`
+- API：`ctx.configForms.get('tidychat')`、`ctx.sessions.binding(sid).eventSource`（0.2.0-rc.2 的 ui-conversation 仍从 `sessions.binding(id).eventSource` 建会话）。旧宿主（≤ v0.3.1）才用 `installSettingsSection` / `settings.register`
 - 消息轨取数：`binding.eventSource.getSnapshot().entries`（会话**事件窗** `SessionEventSource`）。**不要用 `session.getSnapshot()` 取消息节点** —— 0.1.2+ 它只返回控制字段（queue/running/hasMore/openState…），没有 `nodes`，按旧假设取数会解析出 0 轮、组件直接 `return null`（零 DOM、无报错）
 - 配置字段（host schema）：`fold` / `divider` / `navigator` / `hideOfficialNav` / `autoLoad` / `navColor`+`navColorCustom`+`navColorLight` / `navAccent`+`navAccentCustom`+`navAccentLight` / `navSide` / `navStyle` / `navRing` / `navGuideSeen`
 - 语义色 token：`--dsw-alias-label-primary/secondary/tertiary/caption`、`--dsw-alias-bg-layer-3`、`--dsw-alias-state-business-primary`、`--dsw-alias-border-l2`
@@ -71,29 +74,27 @@ dsh-tidychat/
 **DOM 结构**：
 
 ```
-div.<hash>_slot                                z-index:7; position:sticky; height:0; pointer-events:none
-└─ nav.<hash>_frame  aria-label=<i18n>         宽 28px；right: calc(12px - (side-clearance + 16px))；pointer-events:auto
-   │  style="--turn-natural-height:…;--turn-rail-inset:…;--turn-scroll-top:…"
+div.<hash>_slot                                z-index:7; height:0; pointer-events:none
+                                               会话滚动容器内为 position:sticky，否则 absolute
+└─ nav.<hash>_frame  aria-label=<i18n>         宽 28px；right:12px；pointer-events:auto
    └─ div.<hash>_scroller[.<hash>_fadeTop][.<hash>_fadeBottom]
       └─ div.<hash>_marks
-         └─ div.<hash>_markPosition  style="--turn-natural-position: Npx"   每轮一个
-            └─ button.<hash>_mark[._markActive|_markPreview|._markBusy|._markUnloaded]
+         └─ 虚拟列表项 .<hash>_mark[._markActive|_markPreview|._markBusy|._markUnloaded]
 ```
 
-**关键事实**：
+**关键事实**（按 `dsh-client-ui-chat@0.2.0-rc.2` 发布包核对）：
 
-- 类名是 CSS Module 产物，`<hash>`（如 `eGxaPq`）**随构建变化 → 禁止硬编码**
+- 类名是 CSS Module 产物，`<hash>`（该包里见过 `eGxaPq`）**随构建变化 → 禁止硬编码**
+- 0.2 改为虚拟列表，**不再写** `--turn-natural-position`，也没有 `markPosition` 包裹层
 - `if (items.length < 2) return null` —— 少于 2 轮整体不渲染
-- `React.memo(TurnNavigatorRail)` —— 只在轮次增删 / `activeTurn` 变化时协调，**不随流式 delta 重渲染**
-- `railItems = mergeTurnRailItems(turnNavigationItems, turnOutline)` —— 映射**整个会话大纲**，未加载轮次也占位（`anchor.kind === 'unloaded'`）
-- 固定间距 `TURN_SPACING_PX = 10`、内缩 `RAIL_INSET_PX = 6`、遮罩带 `FADE_PX = 24`
-- 官方自带响应式关闭：`@container (width<=900px){ ._slot{display:none} }`
+- `railItems = mergeTurnRailItems(...)` 仍在；间距常量 `TURN_SPACING_PX` / `RAIL_INSET_PX` / `FADE_PX` 仍在。0.1 文档里的 `React.memo(TurnNavigatorRail)` 在该发布包中已不存在
+- 官方自带响应式关闭：`@container (width<=900px){ ._frame{display:none} }`（藏的是 frame，不是 slot）
 
-**插件的接管选择器（三重锚定，跨 hash 稳定）**：
+**插件的接管选择器（跨 hash，按 0.2 结构）**：
 
 ```css
 html[data-tidychat-hide-official-nav] [class*="_slot"]:has(> nav[class*="_frame"]),
-html[data-tidychat-hide-official-nav] nav[class*="_frame"]:has([style*="--turn-natural-position"]) {
+html[data-tidychat-hide-official-nav] [class*="_slot"] > nav[class*="_frame"] {
   display: none !important;
 }
 ```
@@ -115,7 +116,7 @@ html[data-tidychat-hide-official-nav] nav[class*="_frame"]:has([style*="--turn-n
 | **`applyOfficialNavTakeover()`**（紧邻 `applyNavColors`） | 切根元素 `data-tidychat-hide-official-nav`；4 个调用点：启动、设置订阅、扫描后兜底、卸载清理 |
 | `roundRectPath()` + `NAV_RAIL_RING_W/OFFSET`（紧跟 `railHeight`） | `arcTo` 自绘圆角，不依赖 `ctx.roundRect` |
 | RailView React 组件（`measurePos`/`layoutPositions`/`indexFromY`/`railHeight`/`rowCache`/`detectCurrent`/`jumpTo`/pointer rAF 节流/tip 提示卡） | 绘制循环内 `bar`/`dot` 两分支；循环后为 `boxOf()` + 外圈描边通道 |
-| 设置卡片（`TidychatSettingsCard`：5 开关 + 位置/样式/外圈 + 配色高级折叠 + 诊断报告按钮） | 顶部常量 `NAV_SIDE_OPTIONS` / `NAV_STYLE_OPTIONS` / `NAV_RING_OPTIONS` |
+| 设置卡片（`TidychatSettingsCard`：5 开关 + 位置/样式/外圈 + 配色高级折叠 + 诊断报告按钮） | 挂 `settings.plugins.tab`（`id: tidychat`）；根元素 `div`；顶部常量 `NAV_SIDE_OPTIONS` / `NAV_STYLE_OPTIONS` / `NAV_RING_OPTIONS` |
 
 ---
 

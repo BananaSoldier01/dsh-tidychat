@@ -8,6 +8,8 @@
 
 多任务、多轮次的会话里，思考、工具调用、中间文字和最终总结混在一起，回头找「上次那个任务的结论」很费劲。dsh-tidychat 把已完成的任务轮次折叠成一条结论、把思考与正文用分隔线切开，并在聊天区边缘提供 Codex 式导航消息轨（Canvas minimap）。
 
+> **维护定位（0.4.0 起）**：DSH 官方 Web 已覆盖折叠、消息轨等大量重叠能力。本插件**暂以兼容性维护为主**——跟住宿主设置面 / DOM 契约变更，保证在目标 DSH 版本上可装可用；不再以功能扩张为优先。仍适合：想用插件轨的贴边/样式/配色、接管官方轨、智能加载更早历史，或留在 DSH 0.1.x（请用 **0.3.1**）的用户。
+
 ## ✨ 功能
 
 | 功能 | 说明 |
@@ -19,7 +21,7 @@
 | ⬆ 智能加载更早历史 | 空闲时逐步加载更早记录，检测到响应下降自动暂停，需要时仍可手动继续 |
 | 📤 一键报告问题 | 生成诊断报告（版本 / 浏览器 / 性能数据 / 异常检测 / 现象标签），一键打开预填好的 GitHub issue |
 
-五项开关各自独立（「设置 → 插件配置」，改动即时生效）。在 DSH 0.1.2+ 上首次出现「插件轨 + 官方轨并存」时会弹一次向导讲清「左缘 = 插件 / 右缘 = 官方」，并可直接三选一。
+五项开关各自独立（「设置 → 内置插件 → 会话整理 tidychat」，改动即时生效）。在 DSH 0.2.x 上首次出现「插件轨 + 官方轨并存」时会弹一次向导讲清「左缘 = 插件 / 右缘 = 官方」，并可直接三选一。
 
 ## 📸 效果
 
@@ -58,10 +60,10 @@
 dsh plugin --profile web add @bananasoldier01/dsh-tidychat
 
 # 方式 2：从 GitHub 安装（推荐钉版本，可复现）
-dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat.git#v0.3.1
+dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat.git#v0.4.0
 ```
 
-安装后重启 dsh web + 硬刷新（Cmd+Shift+R）。
+安装后重启 dsh web + 硬刷新（Cmd+Shift+R）。**0.4.0 只适用于 DSH 0.2.x**。
 
 ### 更新
 
@@ -72,33 +74,40 @@ dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat
 dsh plugin --profile web update @bananasoldier01/dsh-tidychat
 
 # 方式 B：装的是某个 tag，改钉到新 tag 重新 add
-dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat.git#v0.3.1
+dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat.git#v0.4.0
 ```
 
 更新后同样重启 dsh web + 硬刷新。
 
-> ⚠️ **仅 DSH ≤ 0.1.0-rc.6**：宿主白名单硬编码，第三方开关会变灰不可点，需跑一次 `scripts/whitelist-patch.sh` 把 `tidychat` 加进去（幂等，升级 DSH 后重跑）：
+> ⚠️ **版本线不能混用**。DSH 0.1.7 起删除了命令式 `settings.register` / `installSection`，改成 Config `.volatile()` 声明式设置；`.volatile()` 在 0.1.6 上调用即抛 `TypeError`。**一份构建无法同时支持 ≤0.1.6 与 ≥0.1.7**。
+>
+> | 插件 | DSH |
+> | --- | --- |
+> | **0.4.0+**（本线，npm dist-tag `dsh-0.2`） | **0.2.x** |
+> | **0.3.1**（0.1.0-rc.7 ~ 0.1.6 的最后一版） | 0.1.0-rc.7 ~ 0.1.6 |
+> | `0.1.0` | ≤ 0.1.0-rc.6（需白名单补丁，见下） |
+>
+> DSH 0.1.7 不在这两条线上：0.3.1 的注册 API 已被删除，0.4.0 的 peer 只接受 0.2.x。请把宿主升到 0.2.x 再装 0.4.0。
+>
+> **仅 DSH ≤ 0.1.0-rc.6**（插件 `0.1.0`）：宿主白名单硬编码，第三方开关会变灰不可点，需跑一次 `scripts/whitelist-patch.sh`（幂等）：
 >
 > ```sh
 > curl -sL https://raw.githubusercontent.com/BananaSoldier01/dsh-tidychat/main/scripts/whitelist-patch.sh | bash
 > ```
->
-> **DSH ≥ 0.1.0-rc.7 不需要**：白名单机制已移除，命名空间由插件动态注册。`0.2.0` 起插件适配 **DSH ≥ 0.1.0-rc.7**（rc.7 把 `settings.plugin.item` 槽由 list 改为 keyed、注册字段由 `id` 改为 `key`，旧写法会报 "Failed to load plugins"）；**DSH ≤ 0.1.0-rc.6 请使用插件 `0.1.0`**。
 
 ## 🧩 兼容性
 
-| DSH 版本 | settings 注册 | 折叠 / 分隔线 / 自动加载 | 消息轨 |
-| --- | --- | --- | --- |
-| 0.1.0-rc.7 ~ 0.1.1-rc.x | `register` | ✅ v0.2.8+ 可用（v0.2.7 无回退，不生效） | ✅ 可用（旧版无官方轨，不需要接管开关） |
-| 0.1.2-alpha.2+ ~ 0.1.2-rc.1 | `installSection` | ✅ 可用 | ✅ **0.3.0 起可用**（0.2.10 及更早取数路径读错快照，轨道解析出 0 轮、实际从未渲染） |
+| 插件版本 | DSH 版本 | 设置面 |
+| --- | --- | --- |
+| **0.4.0+** | **0.2.x**（按 0.2.0-rc.2 核对） | 声明式：Config `.volatile()` 自动成表；浏览器半 `ctx.configForms.get('tidychat')`；自带设置卡挂 `settings.plugins.tab` |
+| **0.3.1**（该区间最后一版） | 0.1.0-rc.7 ~ 0.1.6 | 命令式：`register`（至 0.1.1）/ `installSection`（0.1.2 ~ 0.1.6）。折叠 / 分隔线 / 自动加载自插件 0.2.8 起可用；消息轨自 **0.3.0** 起可用（0.2.10 及更早取数路径读错快照，轨道解析出 0 轮、实际从未渲染） |
 
-- 插件按宿主版本自动选用注册 API，同一份产物在 **0.1.0-rc.7 ~ 0.1.2-rc.1** 都能加载并设置开关。
-- DSH 0.1.2 起官方原生新增「折叠过程内容」与右缘 TurnNavigator，与插件 `fold` / 消息轨重叠，**二选一**即可：用官方的就关插件开关（避免双折叠），想用自己的轨就打开「接管官方消息轨」，否则会看到左右两条轨。
-- 接管是**隐藏而非卸载**：宿主未提供原生开关，开启后官方组件仍会挂载（DOM 保留），停掉的是绘制、布局、交互与滚动跟随。
+- DSH 0.1.2 起官方已有「折叠过程内容」与右缘 TurnNavigator；**0.2.x 上官方能力更完整**，与插件大量重叠。多数场景可只用官方；需要本插件轨的贴边/样式/配色或「接管官方消息轨」时再开对应开关（否则易双折叠 / 左右双轨）。
+- 接管是**隐藏而非卸载**：宿主未提供原生开关，开启后官方组件仍会挂载（DOM 保留），停掉的是绘制、布局、交互与滚动跟随。0.2.0-rc.2 的官方轨改为虚拟列表，不再写 `--turn-natural-position`；隐藏改锚在 `div.*_slot > nav.*_frame` 结构上（不硬编码 CSS Module hash）。
 
 ## ⚙️ 设置
 
-在「设置 → 插件配置」展开 **会话整理tidychat** 卡片（改动即时生效）：
+在「设置 → 内置插件」打开 **会话整理 tidychat** 标签（改动即时生效）：
 
 | 项 | 配置键 | 默认 | 说明 |
 | --- | --- | --- | --- |
@@ -117,19 +126,17 @@ dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat
 
 ## 🔧 原理
 
-纯浏览器半（`exports "./client"`）实现，host 半只注册 settings 命名空间，不修改任何 DSH 源码：
+纯浏览器半（`exports "./client"`）实现。host 半只声明带 `.volatile()` 的 Config schema，不注册命名空间，也不修改任何 DSH 源码：
 
 - 折叠 / 分隔 / 导航全部通过 DOM 结构锚点（`data-chat-anchor-key`、`data-variant="think"` 等契约级属性）定位，不依赖编译期 hash 类名；`MutationObserver` 观察会话 DOM，配合定时兜底扫描，处理流式渲染与历史加载。
 - 展开 / 收起状态为会话内内存态，刷新后恢复默认（全部折叠）。
-- 「接管官方消息轨」同样不依赖编译期 hash：官方 TurnNavigator 的类名是 CSS Module 产物，插件改用**局部名子串 + 结构 + 官方每轮必写的内联 `--turn-natural-position` 变量**三重锚定，关闭时仅移除根元素上的 `data-tidychat-hide-official-nav` 属性即可恢复。
+- 「接管官方消息轨」同样不依赖编译期 hash：官方 TurnNavigator 的类名是 CSS Module 产物。0.2 的结构是 `div.*_slot > nav.*_frame`（虚拟列表，不再写 `--turn-natural-position`），插件按这个结构隐藏；关闭时仅移除根元素上的 `data-tidychat-hide-official-nav` 属性即可恢复。
 
 ## 🗺️ 路线图
 
-逐版本变更已迁至 [`CHANGELOG.md`](./CHANGELOG.md)。当前 0.3.1，候选方向：
+逐版本变更见 [`CHANGELOG.md`](./CHANGELOG.md)。**当前阶段：兼容性维护**（跟 DSH 0.2.x 设置面与 DOM 契约），不做功能扩张。若上游破坏性变更或安装门需要跟进，再发补丁版。
 
-1. **Turn Index 层**：conversation DOM → Turn Index（id/element/position/summary），由 fold / navigator / autoload 共享，替代每次全量扫描；等真实 500+ 轮数据再定增量方案。
-2. **运行中回合的已完成步骤折叠**（issue #2）：单轮内执行大量动作时实时折叠已完成步骤，需求强度待验证。
-3. **向上游提 issue**：建议 DSH 为原生 TurnNavigator 提供开关（或槽位覆盖），让第三方插件能真正「逻辑关闭」而非仅隐藏。
+历史候选（暂缓）：Turn Index 层、运行中步骤折叠（issue #2）、向上游申请官方轨原生开关。
 
 ## 🧑‍💻 开发
 

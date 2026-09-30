@@ -4,6 +4,18 @@
 
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [SemVer](https://semver.org/lang/zh-CN/)。
 
+## [0.4.0] — 2026-09-30
+
+适配 DSH 0.2.x 的声明式设置。**0.4.0+ = DSH 0.2.x；0.3.1 是 DSH 0.1.0-rc.7 ~ 0.1.6 的最后一版。**
+
+**背景**：DSH 0.1.7 起删除 `settings.register` 与 `settings.installSection`，客户端 `webUiSettings` / `settingsScope` 与 `settings.plugin.item` 也不再存在。`.volatile()` 在 0.1.6 上调用即抛 `TypeError`，一份产物无法同时兼容 ≤0.1.6 与 ≥0.1.7。本版把 main 切到 **DSH 0.2.x**（按 **0.2.0-rc.2** 的发布包核对），不覆盖 0.1.7。
+
+1. **声明式设置（host 半）**：删掉 `ctx.inject(['settings'])` 注册块；Config 全部 15 个字段标 `.volatile()`（`@deepseek-ai/schemastery ^3.18.4`），由宿主按 entry id `tidychat` 自动成表。宿主侧不消费配置值，`apply` 为空实现。
+2. **客户端配置缝**：设置读取改绑 `ctx.configForms.get('tidychat')`（`getSnapshot` / `subscribe` / `set`，快照仍含 `status` / `value` / `writable`）。`inject` 增加 `configForms`。
+3. **设置卡席位**：原 `settings.plugin.item` 卡片（配色调色盘、诊断报告、折叠/导航/接管/引导相关开关）改挂 `settings.plugins.tab`（「设置 → 内置插件」里的 tab，`id: tidychat`，order 60）；卡片根元素 `li` → `div`。
+4. **接管选择器**：0.2.0-rc.2 的官方 TurnNavigator 改为虚拟列表，不再写 `--turn-natural-position`。隐藏与「官方轨是否在场」改锚在 `div.*_slot > nav.*_frame`（仍不硬编码 hash）。折叠、导航、接管、首次引导、更早历史提示带、配色、诊断报告都保留。
+5. **版本约束**：peer `@deepseek-ai/dsh-settings` 与 `engines.dsh` 均为 `>=0.2.0-rc.2 <0.3.0-0`。DSH 安装门用 `semver.satisfies(runtime, range, { includePrerelease: true })` 比对 `@deepseek-ai/dsh` 与 `@deepseek-ai/dsh-*` peer，**不读 `engines.dsh`**；上界写成 `<0.2.0-0` 会把 0.2.0-rc.2 判为不兼容，本版不用这个上界。npm dist-tag `dsh-0.2`。
+
 ## [0.3.1] — 2026-09-16
 
 消息轨在「更早历史未加载」时的可发现性 + 一处落点错位修复。
