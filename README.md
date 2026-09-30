@@ -8,6 +8,8 @@
 
 多任务、多轮次的会话里，思考、工具调用、中间文字和最终总结混在一起，回头找「上次那个任务的结论」很费劲。dsh-tidychat 把已完成的任务轮次折叠成一条结论、把思考与正文用分隔线切开，并在聊天区边缘提供 Codex 式导航消息轨（Canvas minimap）。
 
+> **维护定位（0.4.0 起）**：DSH 官方 Web 已覆盖折叠、消息轨等大量重叠能力。本插件**暂以兼容性维护为主**——跟住宿主设置面 / DOM 契约变更，保证在目标 DSH 版本上可装可用；不再以功能扩张为优先。仍适合：想用插件轨的贴边/样式/配色、接管官方轨、智能加载更早历史，或留在 DSH 0.1.x（请用 **0.3.1**）的用户。
+
 ## ✨ 功能
 
 | 功能 | 说明 |
@@ -100,7 +102,7 @@ dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat
 | **0.4.0+** | **0.2.x**（按 0.2.0-rc.2 核对） | 声明式：Config `.volatile()` 自动成表；浏览器半 `ctx.configForms.get('tidychat')`；自带设置卡挂 `settings.plugins.tab` |
 | **0.3.1**（该区间最后一版） | 0.1.0-rc.7 ~ 0.1.6 | 命令式：`register`（至 0.1.1）/ `installSection`（0.1.2 ~ 0.1.6）。折叠 / 分隔线 / 自动加载自插件 0.2.8 起可用；消息轨自 **0.3.0** 起可用（0.2.10 及更早取数路径读错快照，轨道解析出 0 轮、实际从未渲染） |
 
-- DSH 0.1.2 起官方原生新增「折叠过程内容」与右缘 TurnNavigator，与插件 `fold` / 消息轨重叠，**二选一**即可：用官方的就关插件开关（避免双折叠），想用自己的轨就打开「接管官方消息轨」，否则会看到左右两条轨。
+- DSH 0.1.2 起官方已有「折叠过程内容」与右缘 TurnNavigator；**0.2.x 上官方能力更完整**，与插件大量重叠。多数场景可只用官方；需要本插件轨的贴边/样式/配色或「接管官方消息轨」时再开对应开关（否则易双折叠 / 左右双轨）。
 - 接管是**隐藏而非卸载**：宿主未提供原生开关，开启后官方组件仍会挂载（DOM 保留），停掉的是绘制、布局、交互与滚动跟随。0.2.0-rc.2 的官方轨改为虚拟列表，不再写 `--turn-natural-position`；隐藏改锚在 `div.*_slot > nav.*_frame` 结构上（不硬编码 CSS Module hash）。
 
 ## ⚙️ 设置
@@ -132,11 +134,9 @@ dsh plugin --profile web add git+https://github.com/BananaSoldier01/dsh-tidychat
 
 ## 🗺️ 路线图
 
-逐版本变更已迁至 [`CHANGELOG.md`](./CHANGELOG.md)。当前 0.4.0（DSH 0.2.x），候选方向：
+逐版本变更见 [`CHANGELOG.md`](./CHANGELOG.md)。**当前阶段：兼容性维护**（跟 DSH 0.2.x 设置面与 DOM 契约），不做功能扩张。若上游破坏性变更或安装门需要跟进，再发补丁版。
 
-1. **Turn Index 层**：conversation DOM → Turn Index（id/element/position/summary），由 fold / navigator / autoload 共享，替代每次全量扫描；等真实 500+ 轮数据再定增量方案。
-2. **运行中回合的已完成步骤折叠**（issue #2）：单轮内执行大量动作时实时折叠已完成步骤，需求强度待验证。
-3. **向上游提 issue**：建议 DSH 为原生 TurnNavigator 提供开关（或槽位覆盖），让第三方插件能真正「逻辑关闭」而非仅隐藏。
+历史候选（暂缓）：Turn Index 层、运行中步骤折叠（issue #2）、向上游申请官方轨原生开关。
 
 ## 🧑‍💻 开发
 

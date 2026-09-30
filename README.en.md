@@ -8,6 +8,8 @@ Turn long DSH conversations into a **scannable, skippable** stream of conclusion
 
 In multi-task sessions, thoughts, tool calls, intermediate text and final summaries pile up, making it hard to find "the conclusion of that last task". dsh-tidychat folds completed turns into a single conclusion line, separates thinking from prose with a divider, and adds a Codex-style navigation rail (Canvas minimap) along the chat edge.
 
+> **Maintenance focus (from 0.4.0)**: Upstream DSH Web now covers much of the same ground (fold, rail, etc.). This plugin is **primarily under compatibility maintenance** — tracking host settings/DOM contract changes so it stays installable on the target DSH line, not chasing new features. Still useful if you want this rail's dock/style/colors, official-rail takeover, smart earlier-history load, or you stay on DSH 0.1.x (use **0.3.1**).
+
 ## ✨ Features
 
 | Feature | Description |
@@ -100,7 +102,7 @@ Restart dsh web + hard refresh after updating.
 | **0.4.0+** | **0.2.x** (checked against 0.2.0-rc.2) | Declarative: Config `.volatile()` fields are auto-rendered; the browser half reads `ctx.configForms.get('tidychat')`; the full settings card is a `settings.plugins.tab` |
 | **0.3.1** (last release for this range) | 0.1.0-rc.7 ~ 0.1.6 | Imperative: `register` (through 0.1.1) / `installSection` (0.1.2 ~ 0.1.6). Fold / divider / auto-load work since plugin 0.2.8; the rail works **since 0.3.0** (on 0.2.10 and earlier the rail read the wrong snapshot, resolved 0 turns and never rendered) |
 
-- Since DSH 0.1.2 the host natively folds process content and ships a right-edge TurnNavigator, overlapping the plugin's `fold` / rail: just **pick one** — if you use the native fold, disable the plugin's (avoid double-folding); if you want this plugin's own rail, turn on "Take over the official rail", otherwise you will see two rails, one on each edge.
+- Since DSH 0.1.2 the host folds process content and ships a right-edge TurnNavigator; **on 0.2.x upstream covers even more**, overlapping this plugin heavily. Prefer the official UI for most cases; turn on this plugin's rail / takeover only when you want its dock/style/colors (otherwise you risk double-fold or two rails).
 - Takeover **hides rather than unmounts**: the host exposes no native switch, so with takeover on the official component stays mounted (its DOM remains) — what stops is painting, layout, interaction and scroll-following. On 0.2.0-rc.2 the official rail is a virtual list and no longer writes `--turn-natural-position`; hiding anchors on the `div.*_slot > nav.*_frame` structure (CSS-module hashes are not hardcoded).
 
 ## ⚙️ Settings
@@ -132,11 +134,9 @@ Pure browser half (`exports "./client"`). The host half only declares a Config s
 
 ## 🗺️ Roadmap
 
-Per-version changes live in [`CHANGELOG.md`](./CHANGELOG.md). Currently 0.4.0 (DSH 0.2.x); candidates:
+See [`CHANGELOG.md`](./CHANGELOG.md) for releases. **Current focus: compatibility maintenance** (track DSH 0.2.x settings surface and DOM contracts), not new features. Patch releases only when upstream breaks install or runtime contracts.
 
-1. **Turn Index layer**: conversation DOM → Turn Index (id/element/position/summary) shared by fold / navigator / autoload, replacing full rescans; incremental maintenance once real 500+ turn data is available.
-2. **Folding completed in-flight steps** (issue #2): fold completed steps live within a single turn that runs many actions. Demand TBD.
-3. **Upstream issue**: ask DSH to expose a switch (or slot override) for its native TurnNavigator so third-party plugins can truly "turn it off" instead of only hiding it.
+Deferred ideas: Turn Index layer, in-flight step folding (issue #2), upstream native rail switch.
 
 ## 🧑‍💻 Development
 
